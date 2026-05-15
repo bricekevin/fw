@@ -64,8 +64,14 @@
 #define ANTHROPIC_HOST "api.anthropic.com"
 #define ANTHROPIC_MESSAGES_URL "https://api.anthropic.com/v1/messages"
 #define ANTHROPIC_API_VERSION "2023-06-01"
+// OAuth beta — the unified 5h/7d rate-limit headers are only attached to
+// OAuth (Bearer) requests carrying this beta flag. A plain x-api-key request
+// returns 200 but no unified headers (confirmed on hardware, 2026-05-15).
+#define ANTHROPIC_OAUTH_BETA "oauth-2025-04-20"
+// Identify as a Claude Code client (matches the Clawdmeter reference daemon).
+#define ANTHROPIC_USER_AGENT "claude-code/2.1.5"
 // Cheapest model — we only want the rate-limit response headers.
-#define ANTHROPIC_POLL_MODEL "claude-haiku-4-5"
+#define ANTHROPIC_POLL_MODEL "claude-haiku-4-5-20251001"
 
 // ---------------------------------------------------------------------------
 // UI — colors (RGB565, what M5.Lcd draw calls expect)

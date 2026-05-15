@@ -29,7 +29,7 @@ static const char *RL_HEADERS[] = {RL_5H_UTIL, RL_7D_UTIL, RL_5H_RESET, RL_7D_RE
 static const char POLL_BODY[] =
     "{\"model\":\"" ANTHROPIC_POLL_MODEL "\","
     "\"max_tokens\":1,"
-    "\"messages\":[{\"role\":\"user\",\"content\":\".\"}]}";
+    "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
 
 static bool s_headers_dumped = false;  // dump header values once, to confirm
 
@@ -100,12 +100,17 @@ PollOutcome poller_poll(const String &api_key, UsageData *out) {
   HTTPClient http;
   http.setTimeout(POLL_HTTP_TIMEOUT_MS);
   http.setReuse(false);
+  http.setUserAgent(ANTHROPIC_USER_AGENT);
   if (!http.begin(client, ANTHROPIC_MESSAGES_URL)) {
     Serial.println("[poll] http.begin() failed");
     return POLL_API_UNREACHABLE;
   }
-  http.addHeader("x-api-key", api_key);
+  // OAuth (Bearer) auth — the unified 5h/7d rate-limit headers are only
+  // returned for OAuth requests with the anthropic-beta flag. `api_key` here
+  // is a Claude Code OAuth token (sk-ant-oat01-...), not an x-api-key.
+  http.addHeader("Authorization", "Bearer " + api_key);
   http.addHeader("anthropic-version", ANTHROPIC_API_VERSION);
+  http.addHeader("anthropic-beta", ANTHROPIC_OAUTH_BETA);
   http.addHeader("content-type", "application/json");
   http.collectHeaders(RL_HEADERS, sizeof(RL_HEADERS) / sizeof(RL_HEADERS[0]));
 

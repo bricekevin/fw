@@ -49,8 +49,8 @@ void onConfigModeCallback(WiFiManager *myWiFiManager) {
 // (e.g. re-onboarding after a rejected key).
 void wifi_portal_begin() {
   new (&apiKeyField) WiFiManagerParameter(
-      PARAM_ID_ANTHROPIC_KEY, "Anthropic API Key", "", 120,
-      "placeholder=\"sk-ant-...\" type=\"password\"");
+      PARAM_ID_ANTHROPIC_KEY, "Claude Code OAuth token", "", 200,
+      "placeholder=\"sk-ant-oat01-...\" type=\"password\"");
   wifiManager.addParameter(&apiKeyField);
 
   wifiManager.setSaveParamsCallback(saveParamCallback);
