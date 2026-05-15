@@ -1,6 +1,6 @@
 # Phase 1 - Bootstrap Tasks
 
-**Status:** 11/14 complete (1.2 and 5.1 blocked on hardware)
+**Status:** 14/14 complete — Phase 1 done, validated on hardware
 **Updated:** 2026-05-15
 
 > See HANDOFF_NOTES.md for detailed context. See PHASE_IMP.md for code snippets and commands.
@@ -18,11 +18,10 @@
   - [x] Write a throwaway 10-line `M5.begin()` + `Serial.println` sketch; `arduino-cli compile` it
   - [x] Toolchain finding: a global sketchbook `SD` library shadows the ESP32 SD and breaks the build. Fixed with a `sketch.yaml` build profile (not an ADR 001 core change). See HANDOFF_NOTES.
 
-- [ ] **1.2 Confirm flash + serial round-trip on the device** — BLOCKED: needs the physical M5Stack
-  - [ ] Identify the device's USB serial port (`ls /dev/cu.*`)
-  - [ ] Flash the throwaway sketch; confirm it runs (LCD or serial output)
-  - [ ] Confirm `arduino-cli monitor` shows serial at 115200
-  - [ ] Note the port name and any CP210x driver step in HANDOFF_NOTES
+- [x] **1.2 Confirm flash + serial round-trip on the device**
+  - [x] Device enumerates as `/dev/cu.usbserial-02132522` — plug-and-play, no CP210x driver step needed
+  - [x] Flashed the m5clawd firmware; it boots and runs (provisioning + status screens render)
+  - [x] `arduino-cli monitor` shows serial at 115200 (boot banner + `[boot]`/`[wifi]` logs captured)
 
 ---
 
@@ -96,12 +95,13 @@
 
 ## Epic 5: Testing & documentation
 
-- [ ] **5.1 Smoke tests on real hardware** — BLOCKED: needs the physical M5Stack
-  - [ ] Scenario 1 (fresh flash -> portal): full-erase upload, power-cycle, AP appears, portal reachable
-  - [ ] Submit valid WiFi creds + a well-formed API key -> device reboots and reaches `WL_CONNECTED`
-  - [ ] Reflash without erase -> creds survive, device goes straight to station mode
-  - [ ] Reset gesture -> device returns to portal mode
-  - [ ] Paste serial logs into the phase notes / PR
+- [x] **5.1 Smoke tests on real hardware** — all four scenarios pass
+  - [x] Scenario 1 (fresh flash -> portal): AP `M5Clawd-0D0A10` appears, provisioning screen renders, portal reachable
+  - [x] Submit valid WiFi creds + a well-formed API key -> device auto-reboots into station mode, reaches `WL_CONNECTED` (IP 192.168.0.154), status screen renders. (A malformed key was correctly rejected and the portal reopened.)
+  - [x] Reflash without erase -> creds survive, device goes straight to station mode (status screen)
+  - [x] Reset gesture -> long-press C wipes NVS, device returns to the provisioning screen
+  - [x] Serial logs captured (boot banner, `[boot] configured -> station mode`, `[wifi] connected`)
+  - Note: on the very first provisioning the device needed one manual power-cycle to connect; did not reproduce on retest. See HANDOFF_NOTES known issues.
 
 - [x] **5.2 Update documentation**
   - [x] Added a HANDOFF_NOTES session entry (toolchain finding, strip outcome, build profile)
@@ -113,7 +113,7 @@
 ## Notes
 
 **Blockers:**
-- Tasks 1.2 and 5.1 require the physical M5Stack Core and a USB-C cable on the dev Mac. All firmware code is written and compiles clean against the pinned toolchain; flashing + on-device smoke tests are the remaining Phase 1 work.
+- None. Phase 1 is complete: firmware compiles clean and all four hardware smoke scenarios pass on the M5Stack Core.
 
 **Dependencies:**
 - Epic 2+ depends on Epic 1 (a working toolchain).

@@ -10,8 +10,8 @@
 ## Session 2 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
-**Duration:** ~1 h
-**Focus:** `/3_dev` Phase 1 — toolchain validation, copy-strip, captive portal, screens, reset gesture. Firmware now compiles clean.
+**Duration:** ~1.5 h
+**Focus:** `/3_dev` Phase 1 — toolchain validation, copy-strip, captive portal, screens, reset gesture. Firmware compiles clean and is validated on hardware; Phase 1 complete.
 
 ### What happened
 
@@ -37,6 +37,8 @@ Note: `setup-toolchain.sh` downgraded the globally-installed M5Stack (0.4.6 -> 0
 - [x] **2.1–2.4** copy-strip: 4296-line crypto ticker -> 549-line skeleton across `m5clawd.ino` / `wifi_portal.ino` / `secrets_store.ino` / `ui.ino`; compiles clean
 - [x] **3.1–3.3** captive portal with one Anthropic API-key field; NVS persistence; redactor; provisioning screen with QR
 - [x] **4.1–4.3** boot-mode selection, splash/connecting/status/error screens, button-A cycling, button-C reset gesture + backlight toggle
+- [x] **1.2** flashed to the M5Stack Core; serial round-trip confirmed at 115200
+- [x] **5.1** all four hardware smoke scenarios pass (see Hardware validation below)
 - [x] **5.2** docs updated (this entry, PHASE_TASKS)
 
 ### Files Changed
@@ -52,20 +54,30 @@ m5clawd/flash.sh           — updated to build with --profile m5clawd
 docs/Phase 1/PHASE_TASKS.md — checkboxes updated
 ```
 
+### Hardware validation (same session)
+
+Flashed and smoke-tested on the physical M5Stack Core. Device port: `/dev/cu.usbserial-02132522` (CP2104, plug-and-play on macOS — no driver step). All four Task 5.1 scenarios pass:
+
+- **Fresh flash -> portal**: AP `M5Clawd-0D0A10` raised, provisioning screen renders (CONFIGURE WIFI + SSID + QR).
+- **Valid onboarding**: a malformed key was correctly rejected and the portal reopened; a valid key was accepted, persisted, and the device auto-rebooted into station mode — serial showed `[boot] configured -> station mode` / `[wifi] connected, IP 192.168.0.154`; status screen renders.
+- **Reflash -> creds survive**: a normal (non-erase) reupload kept NVS; device booted straight to the status screen.
+- **Reset gesture**: long-press C wiped NVS and returned to the provisioning screen.
+
+Serial-capture note: `arduino-cli monitor` exits immediately when run as a detached background process (no stdin/TTY). The pattern that works is a foreground call — `arduino-cli monitor ... >log & MPID=$!; sleep N; kill $MPID` — and it only captures while the device is actively emitting (i.e. catch a reset/boot inside the window).
+
 ### Known Issues
 
 | Issue | Severity | Impact | Notes |
 | ----- | -------- | ------ | ----- |
-| Not yet flashed to hardware | n/a | Tasks 1.2 + 5.1 (smoke tests) are unverified | Firmware compiles clean; needs the physical M5Stack + USB-C. |
-| `M5.Lcd.qrcode()` render not visually verified | LOW | QR may need version/width tuning on the real LCD | API confirmed present in M5Stack 0.3.1; params: text, x, y, width=100, version=4. |
+| First post-provisioning boot once needed a manual power-cycle to connect | LOW | One-off; did not reproduce on retest | Likely a flaky first WiFi connect right after the AP/STA teardown. If it recurs, revisit `station_connect()` — the 30 s timeout + single retry may need more retries or a short pre-connect delay. |
+| `M5.Lcd.qrcode()` scannability not formally verified | LOW | QR may need version/width tuning | QR renders on the provisioning screen; not test-scanned. Params: text, x, y, width=100, version=4. |
 | Global libs downgraded | LOW | Other sketches on this Mac see M5Stack 0.3.1 / ArduinoJson 6.17.3 | Intended (matches ADR 001 pins); the crypto ticker also wants these versions. |
 
 ### Next Session Should
 
-1. **Flash to hardware** (`cd m5clawd && ./flash.sh`) — completes Task 1.2.
-2. Run the Task 5.1 smoke scenarios; photograph the screens for the PR.
-3. Tune the provisioning-screen QR if it scans poorly.
-4. If hardware is good, Phase 1 is done -> `/2_pm` for Phase 2 (the Anthropic poller).
+1. Phase 1 is **complete and hardware-validated** -> run `/2_pm` for Phase 2 (the Anthropic HTTPS poller + the Usage screen).
+2. Optionally photograph the device screens for the PR record.
+3. If the one-off power-cycle issue recurs, harden `station_connect()`.
 
 ---
 
