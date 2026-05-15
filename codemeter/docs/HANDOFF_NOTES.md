@@ -7,6 +7,62 @@
 
 ---
 
+## Session 3 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1 h
+**Focus:** `/2_pm` Phase 2 planning, then `/3_dev` Phase 2 Epic 1 — the pure-logic foundation for the Anthropic poller.
+
+### What happened
+
+Planned Phase 2 (Anthropic poller + Usage UI; 16 tasks, 5 epics — see `docs/Phase 2/`), then implemented Epic 1 in worktree `../theClaw-phase-2-20260515` (branch `phase-2-20260515`). Epic 1 is the Arduino-header-free module layer the poller and the Usage UI will both consume; all of it is host-testable without an ESP32 toolchain.
+
+### Completed (Phase 2 Epic 1 — 5/16 tasks)
+
+- [x] **1.1** `UsageData` struct + `Status` enum moved out of `config.h` into a new pure `usage_data.h` (`<stdint.h>` only); added a `bool stale` field for last-known-good display. `config.h` includes it.
+- [x] **1.2** `parse_headers.{h,cpp}` — `parse_anthropic_headers()` parses the four `anthropic-ratelimit-unified-*` header values into `UsageData`.
+- [x] **1.3** `format_helpers.{h,cpp}` — `format_reset_countdown()` and `format_relative_time()`.
+- [x] **1.4** `state_machine.{h,cpp}` — poll-outcome -> `Status` mapping + exponential backoff.
+- [x] **1.5** `test/` host unit-test harness — `run.sh` + three suites, 102 checks, all passing.
+
+### Files Changed
+
+```text
+m5clawd/usage_data.h        — new: pure UsageData struct (was inline in config.h)
+m5clawd/config.h            — UsageData removed; #include "usage_data.h" added
+m5clawd/parse_headers.{h,cpp} — new: rate-limit header parser
+m5clawd/format_helpers.{h,cpp} — new: countdown / relative-time formatters
+m5clawd/state_machine.{h,cpp}  — new: poll-state machine + backoff
+m5clawd/test/{run.sh,test_util.h,*_test.cpp} — new: host g++ unit tests
+docs/Phase 2/               — new: PRD, TASKS, IMP, DEPENDENCIES (from /2_pm)
+```
+
+### Decisions made
+
+- **`UsageData` extracted to its own pure header.** The pure-logic modules cannot include `config.h` (it pulls in `<Arduino.h>`). `usage_data.h` is `<stdint.h>`-only so host `g++` compiles it. `config.h` includes it — no behavior change for the device build.
+- **Backoff bounds are function parameters, not hardcoded.** `sm_next_delay_s(st, base_s, cap_s)` takes the bounds so `state_machine.cpp` stays free of `config.h`; the firmware passes `POLL_INTERVAL_S` / `POLL_BACKOFF_MAX_S`, the tests pass literals.
+- **Header value FORMATS are documented assumptions, not confirmed.** `parse_headers.h` spells out the assumed utilization (fraction vs percent) and reset (relative seconds vs absolute epoch) formats. These MUST be confirmed against a real `200` response in Task 2.3 — the parser is built to be revised there.
+- **`secret_redactor()` is not in the host harness.** It lives in `secrets_store.ino` and takes an Arduino `String`; host-testing it would mean refactoring Phase 1 code for a one-line function already verified on-device. Left device-side. (QA doc lists it as a unit-test target — this is a deliberate, documented deviation.)
+
+### Verification
+
+- `m5clawd/test/run.sh` — 102 checks across 3 suites, all pass.
+- `arduino-cli compile --profile m5clawd` — clean, exit 0 (sketch 71% of flash). The pure `.cpp` modules compile into the firmware; the `test/` subdir is not picked up by arduino-cli, as intended.
+
+### Known Issues
+
+| Issue | Severity | Impact | Notes |
+| ----- | -------- | ------ | ----- |
+| Rate-limit header value formats unconfirmed | MED | `parse_headers` may need adjustment | Names + formats are assumptions. Task 2.3 dumps all headers from a live response; revise `parse_headers.{h,cpp}` + its tests then. |
+
+### Next Session Should
+
+1. Continue `/3_dev` Phase 2 with **Epic 2** — the Anthropic HTTPS poller.
+2. **Do Task 2.1 first** (TLS root CA validation) — it is the phase's highest-risk node. Probe `api.anthropic.com`'s served chain with `openssl s_client` before writing poll code.
+3. Epic 3 (Usage UI) can be worked in parallel with Epic 2 — it only needs Epic 1's `UsageData` + formatters, not a live poll.
+
+---
+
 ## Session 2 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
