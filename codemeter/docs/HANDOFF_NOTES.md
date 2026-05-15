@@ -7,6 +7,68 @@
 
 ---
 
+## Session 2 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1 h
+**Focus:** `/3_dev` Phase 1 — toolchain validation, copy-strip, captive portal, screens, reset gesture. Firmware now compiles clean.
+
+### What happened
+
+Worked Phase 1 Epics 1–4 in worktree `../theClaw-phase-1-20260515`. The crypto ticker (4296-line `.ino`) was copied in and reduced to a 549-line, 4-tab skeleton that compiles clean against the pinned toolchain.
+
+### Toolchain finding (important — read before next build)
+
+`arduino-cli compile --fqbn esp32:esp32:m5stack-core-esp32` **fails** on this Mac. The global sketchbook (`~/Documents/Arduino/libraries`) carries a generic Arduino `SD` library (`architectures=*`) that shadows the ESP32 core's own `SD(esp32)`. Because `M5Stack.h` force-includes `<SD.h>`, the broken SD is picked and the build dies with "Architecture or board not supported".
+
+**Fix:** added `m5clawd/sketch.yaml` — an arduino-cli build profile named `m5clawd`. Building with `--profile m5clawd` resolves libraries only from the profile + platform-bundled set, ignoring the global sketchbook. `flash.sh` was updated to use `--profile`. **All builds must use `arduino-cli compile --profile m5clawd`** (or `./flash.sh`), not a bare `--fqbn` invocation. This is *not* an ADR 001 change — ESP32 core 1.0.4 itself installs and compiles fine; the issue was library shadowing. ESP32 core 1.0.4 + M5Stack 0.3.1 + ArduinoJson 6.17.3 all confirmed working.
+
+Note: `setup-toolchain.sh` downgraded the globally-installed M5Stack (0.4.6 -> 0.3.1) and ArduinoJson (7.4.2 -> 6.17.3) to the pinned versions. These are global; the build profile pins them anyway, but other sketches on this Mac now see the older versions.
+
+### Decisions made
+
+- **Build profile over bare FQBN** — `sketch.yaml` profile `m5clawd`; isolates from the global sketchbook and pins exact versions. `flash.sh` updated.
+- **`startConfigPortal()` not `autoConnect()`** for provisioning — so the portal opens even when WiFi creds already exist (needed for re-onboarding after a rejected key). `wifi_portal_begin()` loops the portal until a valid key is saved, then `ESP.restart()`s into station mode.
+- **Two-stage reset gesture** — hold C 5 s -> confirm screen; +2 s more -> wipe. Release early aborts.
+
+### Completed
+
+- [x] **1.1** toolchain validated; throwaway `M5.begin()` sketch compiles
+- [x] **2.1–2.4** copy-strip: 4296-line crypto ticker -> 549-line skeleton across `m5clawd.ino` / `wifi_portal.ino` / `secrets_store.ino` / `ui.ino`; compiles clean
+- [x] **3.1–3.3** captive portal with one Anthropic API-key field; NVS persistence; redactor; provisioning screen with QR
+- [x] **4.1–4.3** boot-mode selection, splash/connecting/status/error screens, button-A cycling, button-C reset gesture + backlight toggle
+- [x] **5.2** docs updated (this entry, PHASE_TASKS)
+
+### Files Changed
+
+```text
+m5clawd/m5clawd.ino        — REPLACED: crypto ticker -> stripped skeleton (globals, setup, loop, buttons)
+m5clawd/wifi_portal.ino    — new: WiFiManager glue, one API-key param
+m5clawd/secrets_store.ino  — new: NVS persistence + secret_redactor
+m5clawd/ui.ino             — new: text-only screens (splash/connecting/status/provisioning/error/reset)
+m5clawd/config.h           — added cross-tab function prototypes + <Arduino.h>
+m5clawd/sketch.yaml        — new: arduino-cli build profile (the SD-shadowing fix)
+m5clawd/flash.sh           — updated to build with --profile m5clawd
+docs/Phase 1/PHASE_TASKS.md — checkboxes updated
+```
+
+### Known Issues
+
+| Issue | Severity | Impact | Notes |
+| ----- | -------- | ------ | ----- |
+| Not yet flashed to hardware | n/a | Tasks 1.2 + 5.1 (smoke tests) are unverified | Firmware compiles clean; needs the physical M5Stack + USB-C. |
+| `M5.Lcd.qrcode()` render not visually verified | LOW | QR may need version/width tuning on the real LCD | API confirmed present in M5Stack 0.3.1; params: text, x, y, width=100, version=4. |
+| Global libs downgraded | LOW | Other sketches on this Mac see M5Stack 0.3.1 / ArduinoJson 6.17.3 | Intended (matches ADR 001 pins); the crypto ticker also wants these versions. |
+
+### Next Session Should
+
+1. **Flash to hardware** (`cd m5clawd && ./flash.sh`) — completes Task 1.2.
+2. Run the Task 5.1 smoke scenarios; photograph the screens for the PR.
+3. Tune the provisioning-screen QR if it scans poorly.
+4. If hardware is good, Phase 1 is done -> `/2_pm` for Phase 2 (the Anthropic poller).
+
+---
+
 ## Session 1 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
