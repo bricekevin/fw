@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <Arduino.h>
+#include "usage_data.h"   // the shared UsageData struct (pure, host-testable)
 
 // ---------------------------------------------------------------------------
 // Firmware identity
@@ -77,24 +78,11 @@
 #define RESET_HOLD_MS 5000
 
 // ---------------------------------------------------------------------------
-// Shared data model — the only data shape in the firmware.
-// See docs/2_ARCHITECTURE.md "Data Model".
+// Shared data model
+//
+// The UsageData struct moved to usage_data.h (included above) so the pure-logic
+// modules and their host unit tests can use it without Arduino headers.
 // ---------------------------------------------------------------------------
-struct UsageData {
-  uint8_t  session_pct;      // 0..100 — 5-hour rate-limit utilization
-  uint8_t  weekly_pct;       // 0..100 — weekly rate-limit utilization
-  uint32_t session_reset_s;  // seconds until the 5h window resets
-  uint32_t weekly_reset_s;   // seconds until the weekly window resets
-  uint32_t last_poll_unix;   // epoch of the last successful poll
-  enum Status {
-    UNKNOWN,
-    OK,
-    WIFI_DOWN,
-    API_UNREACHABLE,
-    AUTH_FAILED,
-    RATE_LIMITED,
-  } status;
-};
 
 // ---------------------------------------------------------------------------
 // Cross-tab function prototypes

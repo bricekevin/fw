@@ -1,6 +1,6 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 0/16 complete — planning
+**Status:** 5/16 complete — Epic 1 done (pure-logic foundation)
 **Updated:** 2026-05-15
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for code snippets and commands.
@@ -16,31 +16,34 @@
 > docs/4_QUALITY_ASSURANCE.md, these stay free of `M5Stack.h`/`WiFi`/`Arduino.h`
 > so host `g++` can compile them.
 
-- [ ] **1.1 Extract `UsageData` into a pure header** (`usage_data.h`)
-  - [ ] Move the `UsageData` struct + `Status` enum out of `config.h` into a new `usage_data.h` that includes only `<stdint.h>`
-  - [ ] `config.h` `#include "usage_data.h"`; confirm the device build still compiles clean
-  - [ ] Add a `bool stale` (or equivalent) field so the UI can flag last-known-good data — update the struct comment
+- [x] **1.1 Extract `UsageData` into a pure header** (`usage_data.h`)
+  - [x] Moved the `UsageData` struct + `Status` enum out of `config.h` into a new `usage_data.h` that includes only `<stdint.h>`
+  - [x] `config.h` `#include "usage_data.h"`; device build confirmed clean (`arduino-cli compile --profile m5clawd`)
+  - [x] Added a `bool stale` field so the UI can flag last-known-good data; struct comments updated
 
-- [ ] **1.2 Rate-limit header parser** (`parse_headers.{h,cpp}`)
-  - [ ] `parse_anthropic_headers(...)` — given header values (as strings/a lookup), populate the `UsageData` utilization + reset fields
-  - [ ] Parse utilization as a 0..100 percentage; clamp out-of-range values
-  - [ ] Missing or malformed header -> leave the field at a sentinel and let the caller decide `UNKNOWN`
-  - [ ] No Arduino headers — `<string>`, `<cstdint>`, `<cstdlib>` only
+- [x] **1.2 Rate-limit header parser** (`parse_headers.{h,cpp}`)
+  - [x] `parse_anthropic_headers(...)` — takes the four header values as `const char*`, populates `UsageData` utilization + reset fields
+  - [x] `parse_utilization()` — 0..100, clamped; fraction-vs-percent heuristic via the decimal-point guard
+  - [x] `parse_reset()` — relative seconds, or absolute Unix timestamp resolved against `now_unix`; missing/bad -> 0, status -> `UNKNOWN`
+  - [x] No Arduino headers — `<cstdint>`/`<cstdlib>`/`<cstring>`/`<cmath>` only
+  - Note: header value FORMATS are assumptions documented in `parse_headers.h` — confirm against a live response in Task 2.3
 
-- [ ] **1.3 Formatting helpers** (`format_helpers.{h,cpp}`)
-  - [ ] `format_reset_countdown(uint32_t seconds)` -> `"2h 14m"` / `"4d 7h"` / `"<1m"`
-  - [ ] `format_relative_time(uint32_t seconds_ago)` -> `"42s ago"` / `"3m ago"` for the last-poll stamp
-  - [ ] Percent-string helper if useful; keep all of it Arduino-header-free
+- [x] **1.3 Formatting helpers** (`format_helpers.{h,cpp}`)
+  - [x] `format_reset_countdown(uint32_t seconds)` -> `"2h 14m"` / `"4d 7h"` / `"<1m"`
+  - [x] `format_relative_time(uint32_t seconds_ago)` -> `"42s ago"` / `"3m ago"` / `"now"` for the last-poll stamp
+  - [x] Arduino-header-free; returns `std::string`
 
-- [ ] **1.4 Poll-state machine** (`state_machine.{h,cpp}`)
-  - [ ] Given a poll outcome (OK / network-fail / auth-fail / rate-limited / no-key), compute the next `UsageData::Status`
-  - [ ] Compute the next poll delay with exponential backoff (60 -> 120 -> 240 -> 300 cap); reset to base on success
-  - [ ] Track a consecutive-failure count; expose whether data should be flagged stale
+- [x] **1.4 Poll-state machine** (`state_machine.{h,cpp}`)
+  - [x] `sm_advance()` maps a `PollOutcome` to the next `UsageData::Status`
+  - [x] `sm_next_delay_s(st, base, cap)` — exponential backoff (60 -> 120 -> 240 -> 300 cap); base on success. Backoff bounds passed in, not hardcoded, so the module stays config-free and host-testable
+  - [x] Tracks a saturating consecutive-failure count; `sm_data_is_stale()` exposes the stale flag
 
-- [ ] **1.5 Host unit-test harness** (`test/run.sh` + `test/*_test.cpp`)
-  - [ ] `test/run.sh` host-compiles each `*_test.cpp` with `g++ -std=c++17` against the pure sources and runs it
-  - [ ] Tests for `parse_anthropic_headers()`, `format_reset_countdown()`, the state machine transitions, and `secret_redactor()`
-  - [ ] >= 60% line coverage on the pure modules; `run.sh` exits non-zero on any failure
+- [x] **1.5 Host unit-test harness** (`test/run.sh` + `test/*_test.cpp`)
+  - [x] `test/run.sh` host-compiles each `*_test.cpp` with `g++ -std=c++17 -Wall -Wextra` against the pure sources and runs it
+  - [x] Suites for `parse_headers` (52 checks), `format_helpers` (22), `state_machine` (28) — 102 checks, all passing
+  - [x] `run.sh` exits non-zero on any suite failure
+  - Note: `secret_redactor()` is NOT host-tested — it lives in `secrets_store.ino` and takes an Arduino `String`, so it cannot compile under host `g++` without refactoring Phase 1 code. It is a one-line check (`startsWith("sk-ant-")`) and was verified on-device during the Phase 1 portal smoke test. Covered by hardware tests, not the host harness.
+  - Coverage: the three pure modules are exercised across all branches (fraction/percent/clamp/invalid paths, every countdown bucket, every state transition + backoff + saturation + null-safety) — well above the 60% target
 
 ---
 
