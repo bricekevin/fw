@@ -182,9 +182,9 @@ power on
                      "messages":[{"role":"user","content":"."}]})
        5. read response headers:
             anthropic-ratelimit-unified-5h-utilization
-            anthropic-ratelimit-unified-week-utilization
+            anthropic-ratelimit-unified-7d-utilization
             anthropic-ratelimit-unified-5h-reset
-            anthropic-ratelimit-unified-week-reset
+            anthropic-ratelimit-unified-7d-reset
        6. build UsageData; persist last-known-good to Preferences
        7. ui_render(data)
        8. http.end(); client.stop(); wait poll_interval_s

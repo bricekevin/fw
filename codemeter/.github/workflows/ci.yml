@@ -1,0 +1,36 @@
+name: CI
+
+# Compile the firmware, run the host unit tests, and scan for leaked API keys.
+# The compile uses the m5clawd build profile (m5clawd/sketch.yaml), which pins
+# the ESP32 core and libraries and is self-installing — see HANDOFF_NOTES.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Compile firmware
+        # --profile m5clawd resolves and installs the pinned platform + libs.
+        run: arduino-cli compile --profile m5clawd m5clawd
+
+      - name: Host unit tests
+        run: m5clawd/test/run.sh
+
+      - name: Secret scan
+        # Fail if anything resembling a real Anthropic key is committed.
+        # The bare "sk-ant-" prefix in source (key validation) is fine — only
+        # a 40+ char suffix (an actual key) trips this.
+        run: |
+          if git grep -nE 'sk-ant-[A-Za-z0-9_-]{40,}' -- ':!docs' ':!.github'; then
+            echo "::error::An Anthropic API key may have leaked into source"
+            exit 1
+          fi
+          echo "no API keys found in source"

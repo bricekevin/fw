@@ -1,6 +1,6 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 15/20 complete — Epics 1-4 done; Epic 5 (testing/docs) remains
+**Status:** 18/20 complete — code-complete; only hardware smoke + soak (5.2, 5.3) remain
 **Updated:** 2026-05-15
 
 > Task count: 20 numbered tasks across 5 epics (5/4/4/2/5). The PRD and
@@ -135,22 +135,27 @@
 
 ## Epic 5: Testing & documentation
 
-- [ ] **5.1 Host unit tests pass** — `m5clawd/test/run.sh` green, >= 60% coverage on pure modules
-- [ ] **5.2 Hardware smoke tests** (docs/4_QUALITY_ASSURANCE.md scenarios 2, 3)
+- [x] **5.1 Host unit tests pass** — `m5clawd/test/run.sh` green: 100 checks across `parse_headers` / `format_helpers` / `state_machine`, all branches exercised (well above the 60% target)
+- [ ] **5.2 Hardware smoke tests** (docs/4_QUALITY_ASSURANCE.md scenarios 2, 3) — **BLOCKED: needs hardware**
   - [ ] Scenario 2 (happy path): valid key -> Usage screen shows real numbers within 90 s
-  - [ ] Scenario 3 (WiFi drop): kill the router -> `wifi-` within one interval, numbers persist; restore -> `wifi` within two intervals
-  - [ ] Bad-key path: confirm the `auth!` state on a rejected key
-  - [ ] Capture serial logs (`[poll ok] session=..% weekly=..% heap=..`) and a photo of the Usage screen for the PR
-- [ ] **5.3 Performance checks** — single-poll latency < 5 s p95; kick off the 24 h uptime/heap run
-- [ ] **5.4 Optional CI workflow** — add `.github/workflows/ci.yml` (compile via the profile + `test/run.sh` + `sk-ant-` secret scan). Only if a GitHub remote exists; otherwise defer and note it.
-- [ ] **5.5 Update documentation** — HANDOFF_NOTES session entry, this file's checkboxes, `CHANGELOG.md` (created this phase), and a new ADR if TLS/cert handling deviates from plan
+  - [ ] Scenario 3 (WiFi drop): kill the router -> stale badge within one interval, numbers persist; restore -> recovers within two intervals
+  - [ ] Bad-key path: confirm the `auth failed` badge on a rejected key
+  - [ ] Capture serial logs (`[poll] code=200 ...`, the first-poll header dump) and a photo of the Usage screen for the PR
+- [ ] **5.3 Performance checks** — single-poll latency < 5 s p95; 24 h uptime/heap run (covers the Task 4.2 no-leak check) — **BLOCKED: needs hardware**
+- [x] **5.4 CI workflow** — `.github/workflows/ci.yml` added: `arduino-cli compile --profile m5clawd` + `test/run.sh` + API-key secret scan, on push/PR. (A GitHub remote exists — `bricekevin/theClaw` — so this task was in scope.)
+- [x] **5.5 Update documentation** — HANDOFF_NOTES session entry; this checklist; `CHANGELOG.md` created (Phase 1 + Phase 2); `2_ARCHITECTURE.md` rate-limit header names corrected `-week-` -> `-7d-`. No new ADR: the TLS-root and header-name findings are confirmations/corrections of implementation detail, fully documented in `certs.h` / `parse_headers.h` / HANDOFF — not architecture-decision reversals. `PHASE_PRD.md` still references the assumed Amazon/ISRG roots and is left for `/6_doc`.
+
+**Phase 2 status: code-complete (18/20).** Every task that does not require the physical device is done — firmware compiles clean on the pinned toolchain and the host test suite passes. Tasks 5.2 and 5.3 are the remaining work and need an M5Stack on USB: flash, watch serial, photograph the screen, run the 24 h soak.
 
 ---
 
 ## Notes
 
 **Blockers:**
-- None at planning time. Phase 1 is complete and hardware-validated.
+- Tasks 5.2 (hardware smoke tests) and 5.3 (latency + 24 h soak) need a
+  physical M5Stack Core on USB. All code-side work is done; these are the only
+  remaining tasks. Flash with `cd m5clawd && ./flash.sh`, watch serial at
+  115200, and confirm `[poll] code=200` + the first-poll header dump.
 
 **Dependencies (intra-phase):**
 - Epic 2 and Epic 3 both depend on Epic 1 (the pure modules — `UsageData`, parser, formatters, state machine).
