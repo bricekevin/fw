@@ -7,6 +7,71 @@
 
 ---
 
+## Session 6 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1 h
+**Focus:** `/3_dev` Phase 2 Epics 4 + 5 — resilience/persistence, then the testing/docs wrap-up.
+
+### What happened
+
+Implemented Epic 4 (NVS persistence + hardening) and the code-side of Epic 5 (host tests, CI, docs) in worktree `../theClaw-phase-2-20260515`. **Phase 2 is now code-complete — 18/20 tasks.** The only remaining work is on-hardware: smoke tests (5.2) and the latency/24 h soak (5.3).
+
+### Completed (Phase 2 Epics 4 + 5 — 18/20 tasks total)
+
+- [x] **4.1** `usage_store.ino` — last-known-good `UsageData` saved to NVS, restored on boot.
+- [x] **4.2** per-poll heap log + low-heap warning; `WiFi.reconnect()` nudge on `WIFI_DOWN`.
+- [x] **5.1** host unit tests green — 100 checks across the three pure modules.
+- [x] **5.4** `.github/workflows/ci.yml` — compile + host tests + secret scan.
+- [x] **5.5** docs — `CHANGELOG.md` created, `2_ARCHITECTURE.md` header names fixed, this entry.
+- [ ] **5.2 / 5.3** hardware smoke + soak — BLOCKED on a physical device.
+
+### Decisions made
+
+- **Last-known-good is a separate `usage_store.ino` tab**, not part of `secrets_store.ino` — the usage snapshot is not a secret. Stored as one `putBytes()` blob; a size-mismatched blob is discarded on load.
+- **NVS write only when a percentage changed.** Writing every 60 s would wear the flash; utilization is stable for long stretches, so `do_poll()` saves only when `session_pct`/`weekly_pct` differ from the last save.
+- **Restored data renders, it does not show `--`.** `ui.ino`'s new `usg_has_data()` treats restored-stale data as displayable (dimmed); only a truly fresh device with empty NVS shows `--`. On boot the restored blob is forced to `status=UNKNOWN, stale=true` so the badge reads "connecting" while the numbers stay visible.
+- **No new ADR.** The Session 4 TLS-root and header-name findings are confirmations/corrections of implementation detail (documented in `certs.h`, `parse_headers.h`), not reversals of an architecture decision — an ADR would be noise.
+- **CI uses the build profile.** `arduino-cli compile --profile m5clawd` is self-installing (the profile declares the platform + libs), so the workflow is just checkout → setup-arduino-cli → compile → `test/run.sh` → secret scan.
+
+### Files Changed
+
+```text
+m5clawd/usage_store.ino     — new: NVS save/restore of last-known-good UsageData
+m5clawd/config.h            — NVS_KEY_LKG_USAGE, POLL_HEAP_FLOOR, usage_store protos
+m5clawd/m5clawd.ino         — restore-on-boot; per-poll save (change-gated);
+                              heap warning; WiFi.reconnect() nudge
+m5clawd/ui.ino              — usg_has_data(): restored stale data renders, not "--"
+.github/workflows/ci.yml    — new: compile + host tests + secret scan
+CHANGELOG.md                — new: Phase 1 + Phase 2 entries
+docs/2_ARCHITECTURE.md      — rate-limit header names corrected (-week- -> -7d-)
+docs/Phase 2/PHASE_TASKS.md — Epics 4 + 5 checked off
+```
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` — clean, no warnings. Sketch **86%** of flash.
+- `m5clawd/test/run.sh` — 100 checks, all pass.
+- **Still unverified on hardware** (the whole reason 5.2/5.3 exist): the TLS handshake, a live poll, the rate-limit header names/values on a real response, the rendered Usage screen, NVS restore across a real reboot, and 24 h heap behaviour. None of this has run on a device.
+
+### Known Issues
+
+| Issue | Severity | Impact | Notes |
+| ----- | -------- | ------ | ----- |
+| Phase 2 never run on hardware | HIGH | The entire poll + render path is compile-clean and host-probed but unexecuted on a device | Tasks 5.2/5.3. Flash, watch serial for `[poll] code=200` and the first-poll header dump, photograph the Usage screen, run a 24 h soak. |
+| `PHASE_PRD.md` references Amazon/ISRG roots + `-week-` headers | LOW | Planning doc vs shipped reality | Left for `/6_doc`. `certs.h`, `parse_headers.h`, `PHASE_TASKS.md`, `2_ARCHITECTURE.md` are all correct/authoritative now. |
+| Usage-screen layout offsets unconfirmed | MED | `USG_*` constants in `ui.ino` are hand-tuned guesses | Carried from Session 5 — tune against a photo during 5.2. |
+| Sketch at 86% of flash | LOW | ~171 KB headroom | Fine for now; revisit before Phase 3 PNG art. |
+
+### Next Session Should
+
+1. **Get an M5Stack Core on USB and run Tasks 5.2 + 5.3** — this is the first real execution of everything built in Sessions 3-6. `cd m5clawd && ./flash.sh`, then `arduino-cli monitor -p /dev/cu.usbserial-02132522 -c baudrate=115200`. Watch for: TLS handshake success, `[poll] code=200`, the first-poll header dump (confirms the `5h`/`7d` names resolve), the Usage screen rendering, and NVS restore after a power-cycle.
+2. If the header dump shows `(empty)` values, the names need revisiting — but the Clawdmeter daemon is a strong source, so this is unlikely.
+3. Tune the `USG_*` layout constants in `ui.ino` against a photo of the screen.
+4. Once 5.2/5.3 pass, Phase 2 is done — run `/6_doc` (fix `PHASE_PRD.md`), then `/2_pm` for Phase 3 (splash art, battery, audio).
+
+---
+
 ## Session 5 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
