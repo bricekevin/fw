@@ -164,11 +164,18 @@ static void usg_draw_title(int top, const char *title) {
   M5.Lcd.drawString(title, PAD_EDGE, top + USG_TITLE_DY);
 }
 
-// The big percentage. UNKNOWN (no poll yet) shows "--"; stale data is dimmed.
+// True if there are real numbers worth showing: either a poll has succeeded
+// this boot (status != UNKNOWN) or last-known-good values were restored from
+// NVS (stale). Only a fresh device with an empty NVS shows "--".
+static bool usg_has_data(const UsageData &d) {
+  return d.status != UsageData::UNKNOWN || d.stale;
+}
+
+// The big percentage. With no data at all, "--"; stale data is dimmed.
 static void usg_draw_value(int top, const UsageData &d, uint8_t pct) {
   M5.Lcd.fillRect(0, top + USG_VAL_TOP, 320, USG_VAL_H, COLOR_BG);
 
-  if (d.status == UsageData::UNKNOWN) {
+  if (!usg_has_data(d)) {
     M5.Lcd.setFreeFont(FSSB24);
     M5.Lcd.setTextDatum(ML_DATUM);
     M5.Lcd.setTextColor(COLOR_TEXT_DIM);
@@ -200,8 +207,8 @@ static void usg_draw_reset(int top, const UsageData &d, uint32_t reset_s) {
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
 
   String t;
-  if (d.status == UsageData::UNKNOWN) t = "waiting for first poll";
-  else if (reset_s == 0)              t = "resets in --";
+  if (!usg_has_data(d))      t = "waiting for first poll";
+  else if (reset_s == 0)     t = "resets in --";
   else t = String("resets in ") + format_reset_countdown(reset_s).c_str();
   M5.Lcd.drawString(t, PAD_EDGE + 20, top + USG_RESET_DY);
 }
@@ -236,7 +243,7 @@ void ui_update_usage(const UsageData &d) {
 
   // A status change can flip stale/UNKNOWN, which affects the value + reset
   // rendering even when the raw numbers are unchanged — so redraw on either.
-  int sp = (d.status == UsageData::UNKNOWN) ? -1 : (int)d.session_pct;
+  int sp = usg_has_data(d) ? (int)d.session_pct : -1;
   if (sp != s_usg_session || status_changed) {
     s_usg_session = sp;
     usg_draw_value(USG_CARD1_TOP, d, d.session_pct);
@@ -246,7 +253,7 @@ void ui_update_usage(const UsageData &d) {
     usg_draw_reset(USG_CARD1_TOP, d, d.session_reset_s);
   }
 
-  int wp = (d.status == UsageData::UNKNOWN) ? -1 : (int)d.weekly_pct;
+  int wp = usg_has_data(d) ? (int)d.weekly_pct : -1;
   if (wp != s_usg_weekly || status_changed) {
     s_usg_weekly = wp;
     usg_draw_value(USG_CARD2_TOP, d, d.weekly_pct);

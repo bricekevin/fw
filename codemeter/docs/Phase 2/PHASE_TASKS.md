@@ -1,6 +1,6 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 13/20 complete — Epics 1-3 done (pure-logic, HTTPS poller, Usage UI)
+**Status:** 15/20 complete — Epics 1-4 done; Epic 5 (testing/docs) remains
 **Updated:** 2026-05-15
 
 > Task count: 20 numbered tasks across 5 epics (5/4/4/2/5). The PRD and
@@ -118,15 +118,18 @@
 
 ## Epic 4: Resilience & persistence
 
-- [ ] **4.1 Last-known-good `UsageData` in NVS** (`secrets_store.ino` or a new `usage_store` helper)
-  - [ ] On every successful poll, write the `UsageData` fields to `Preferences` namespace `NVS_NAMESPACE`
-  - [ ] On boot, restore them so a cold boot (even with WiFi down) shows last-known numbers flagged stale
-  - [ ] Add the NVS key names to `config.h`
+- [x] **4.1 Last-known-good `UsageData` in NVS** (`usage_store.ino`)
+  - [x] On a successful poll, the whole `UsageData` is written as one `putBytes()` blob — but only when a percentage changed since the last save, to avoid needless NVS write wear
+  - [x] On boot, `usage_store_load()` restores it; `setup()` flags it stale + `status=UNKNOWN` so the screen shows the last numbers (dimmed) instead of "--"
+  - [x] New NVS key `NVS_KEY_LKG_USAGE` in `config.h`; `getBytes` size-check discards a stale blob if `UsageData` ever changes
+  - Note: put in a new `usage_store.ino` tab (not `secrets_store.ino`) — the usage snapshot is not a secret. `secrets_reset()`'s `prefs.clear()` still wipes it, as intended.
 
-- [ ] **4.2 Heap watchdog + WiFi reconnect hardening** (`m5clawd.ino`)
-  - [ ] Log free heap each poll; if it trends toward a floor, log a warning
-  - [ ] On `WIFI_DOWN`, attempt a bounded reconnect each loop tick without blocking buttons
-  - [ ] Confirm no leak across ~30 simulated poll cycles before the formal 24 h test
+- [x] **4.2 Heap watchdog + WiFi reconnect hardening** (`m5clawd.ino`)
+  - [x] Each poll logs `heap=` and warns (`[warn] low heap`) below `POLL_HEAP_FLOOR` (90 KB)
+  - [x] On `POLL_WIFI_DOWN` the poll loop nudges `WiFi.reconnect()` (non-blocking) on top of the existing `setAutoReconnect(true)`
+  - [ ] No-leak confirmation across ~30 poll cycles — **hardware item**, rolls into the 24 h uptime run (Task 5.3); cannot be checked without a device
+
+**Build:** `arduino-cli compile --profile m5clawd` clean, no warnings (sketch 86% of flash). Host tests green (100 checks).
 
 ---
 

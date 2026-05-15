@@ -78,6 +78,18 @@ void setup() {
 
   Serial.println("[boot] configured -> station mode");
   g_apiKey = secrets_get_api_key();
+
+  // Restore last-known-good usage so the screen shows real numbers (flagged
+  // stale) instead of "--" before the first poll of this boot lands.
+  UsageData restored;
+  if (usage_store_load(&restored)) {
+    restored.status = UsageData::UNKNOWN;   // no fresh poll yet this boot
+    restored.stale  = true;
+    g_usage = restored;
+    Serial.printf("[boot] restored usage: session=%u%% weekly=%u%%\n",
+                  g_usage.session_pct, g_usage.weekly_pct);
+  }
+
   ui_show_splash();
   delay(600);
   ui_show_connecting();
@@ -161,10 +173,26 @@ static void do_poll() {
   PollOutcome outcome = poller_poll(g_apiKey, &fresh);
   sm_advance(&g_pollState, outcome);
 
+  // Nudge the WiFi link when it is down — auto-reconnect is on, but a poke
+  // each (backoff-spaced) poll speeds recovery. Non-blocking.
+  if (outcome == POLL_WIFI_DOWN) {
+    Serial.println("[wifi] down -- nudging reconnect");
+    WiFi.reconnect();
+  }
+
   if (outcome == POLL_OK) {
     fresh.stale = false;
     g_usage = fresh;
     g_lastPollMs = millis();
+    // Persist to NVS only when a percentage actually changed — utilization is
+    // stable for long stretches, so this avoids needless NVS write wear.
+    static uint8_t saved_session = 255, saved_weekly = 255;
+    if (fresh.session_pct != saved_session ||
+        fresh.weekly_pct != saved_weekly) {
+      usage_store_save(fresh);
+      saved_session = fresh.session_pct;
+      saved_weekly  = fresh.weekly_pct;
+    }
   } else {
     // Keep the last-known-good numbers on screen; refresh only status/stale.
     g_usage.status = g_pollState.status;
@@ -175,10 +203,15 @@ static void do_poll() {
       sm_next_delay_s(&g_pollState, POLL_INTERVAL_S, POLL_BACKOFF_MAX_S);
   nextPollAtMs = millis() + delay_s * 1000UL;
 
+  uint32_t heap = ESP.getFreeHeap();
   Serial.printf("[poll] outcome=%d status=%d session=%u%% weekly=%u%% "
-                "stale=%d next=%us\n",
+                "stale=%d heap=%u next=%us\n",
                 outcome, g_usage.status, g_usage.session_pct,
-                g_usage.weekly_pct, g_usage.stale, delay_s);
+                g_usage.weekly_pct, g_usage.stale, heap, delay_s);
+  if (heap < POLL_HEAP_FLOOR) {
+    Serial.printf("[warn] low heap: %u bytes (floor %u)\n",
+                  heap, (unsigned)POLL_HEAP_FLOOR);
+  }
 
   if (resetConfirmShown) return;
 

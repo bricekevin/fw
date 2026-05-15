@@ -29,6 +29,10 @@
 // HTTP/TLS timeout for a single Anthropic poll (milliseconds).
 #define POLL_HTTP_TIMEOUT_MS 15000
 
+// Free-heap warning threshold (bytes). A poll that ends below this logs a
+// warning — an early signal of a TLS-buffer leak before the 24 h uptime test.
+#define POLL_HEAP_FLOOR 90000
+
 // NTP servers — the device needs wall-clock epoch time because the rate-limit
 // reset headers are absolute Unix timestamps (see parse_headers.h).
 #define NTP_SERVER_1 "pool.ntp.org"
@@ -51,6 +55,8 @@
 #define NVS_KEY_API_KEY "anthropic_key"
 #define NVS_KEY_CONFIGURED "wifi_configured"
 #define NVS_KEY_POLL_INTERVAL "poll_interval_s"
+// Last-known-good UsageData blob, restored on boot (NVS key <= 15 chars).
+#define NVS_KEY_LKG_USAGE "lkg_usage"
 
 // ---------------------------------------------------------------------------
 // Anthropic API
@@ -118,6 +124,10 @@ const char *secret_redactor(const String &k);
 void        poller_begin();
 PollOutcome poller_poll(const String &api_key, UsageData *out);
 uint32_t    poller_time_now();
+
+// usage_store.ino
+void usage_store_save(const UsageData &d);
+bool usage_store_load(UsageData *out);
 
 // ui.ino
 void ui_show_splash();
