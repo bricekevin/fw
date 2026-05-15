@@ -1,10 +1,22 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 18/20 complete — code-complete; only hardware smoke + soak (5.2, 5.3) remain
+**Status:** 18/20 — poll path hardware-verified; auth pivoted to OAuth (see note below)
 **Updated:** 2026-05-15
 
 > Task count: 20 numbered tasks across 5 epics (5/4/4/2/5). The PRD and
 > DEPENDENCIES docs say "16" — a planning miscount; this checklist is authoritative.
+
+> **HARDWARE VALIDATION (Session 7) — and a scope change.** The firmware was
+> flashed and tested on the real M5Stack. TLS to `api.anthropic.com` works; the
+> poll loop, NVS restore, and screen all run. BUT: a plain `x-api-key` request
+> returns 200 with **no** `anthropic-ratelimit-unified-*` headers — those are
+> attached only to **OAuth (Bearer)** Claude Code requests. The poller was
+> switched to OAuth Bearer auth (`anthropic-beta: oauth-2025-04-20`) and
+> re-verified on hardware: session 82% / weekly 5% parsed correctly from a live
+> response. Consequence: the stored credential is now a Claude Code OAuth token,
+> which **expires (~daily)**. Token refresh + a real onboarding flow (the user
+> cannot be expected to paste a raw OAuth token) are NEW required work — they
+> belong in their own phase, not Phase 2. See HANDOFF_NOTES Session 7.
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for code snippets and commands.
 > See HANDOFF_NOTES.md for Phase 1 context (note: all builds use `--profile m5clawd`).
@@ -136,12 +148,13 @@
 ## Epic 5: Testing & documentation
 
 - [x] **5.1 Host unit tests pass** — `m5clawd/test/run.sh` green: 100 checks across `parse_headers` / `format_helpers` / `state_machine`, all branches exercised (well above the 60% target)
-- [ ] **5.2 Hardware smoke tests** (docs/4_QUALITY_ASSURANCE.md scenarios 2, 3) — **BLOCKED: needs hardware**
-  - [ ] Scenario 2 (happy path): valid key -> Usage screen shows real numbers within 90 s
-  - [ ] Scenario 3 (WiFi drop): kill the router -> stale badge within one interval, numbers persist; restore -> recovers within two intervals
-  - [ ] Bad-key path: confirm the `auth failed` badge on a rejected key
-  - [ ] Capture serial logs (`[poll] code=200 ...`, the first-poll header dump) and a photo of the Usage screen for the PR
-- [ ] **5.3 Performance checks** — single-poll latency < 5 s p95; 24 h uptime/heap run (covers the Task 4.2 no-leak check) — **BLOCKED: needs hardware**
+- [~] **5.2 Hardware smoke tests** (docs/4_QUALITY_ASSURANCE.md scenarios 2, 3) — partially done
+  - [x] Scenario 2 (happy path): flashed, onboarded with an OAuth token, device polled — `[poll] code=200`, unified headers parsed (session 82% / weekly 5%), NVS last-known-good restored across a real reboot
+  - [ ] Scenario 3 (WiFi drop): not yet run
+  - [ ] Bad-key path: not yet run
+  - [x] Serial logs captured (boot, first-poll header dump, two clean polls); [ ] photo of the Usage screen still needed
+  - Carried bug: the post-onboarding boot needed a manual power-cycle (Phase 1 known issue recurred) — harden `station_connect()`
+- [ ] **5.3 Performance checks** — single poll measured at ~4.4-4.5 s (close to the 5 s p95 budget — watch it); 24 h uptime/heap soak not yet run. **Note:** a full soak is moot until token refresh exists — the OAuth token expires in ~a day.
 - [x] **5.4 CI workflow** — `.github/workflows/ci.yml` added: `arduino-cli compile --profile m5clawd` + `test/run.sh` + API-key secret scan, on push/PR. (A GitHub remote exists — `bricekevin/theClaw` — so this task was in scope.)
 - [x] **5.5 Update documentation** — HANDOFF_NOTES session entry; this checklist; `CHANGELOG.md` created (Phase 1 + Phase 2); `2_ARCHITECTURE.md` rate-limit header names corrected `-week-` -> `-7d-`. No new ADR: the TLS-root and header-name findings are confirmations/corrections of implementation detail, fully documented in `certs.h` / `parse_headers.h` / HANDOFF — not architecture-decision reversals. `PHASE_PRD.md` still references the assumed Amazon/ISRG roots and is left for `/6_doc`.
 

@@ -7,6 +7,73 @@
 
 ---
 
+## Session 7 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1.5 h
+**Focus:** First on-hardware test of Phase 2 — and a significant finding that pivots the auth model.
+
+### What happened
+
+Flashed the Phase 2 firmware to the physical M5Stack (worktree `../theClaw-phase-2-20260515`, branch `phase-2-20260515`) and tested against the live API. The poll path works — but the original `x-api-key` design does not surface the usage headers. Switched to OAuth Bearer auth and verified the full path on hardware.
+
+### The headline finding — auth model pivot
+
+- A plain **`x-api-key`** request to `api.anthropic.com/v1/messages` returns `200` but carries **none** of the `anthropic-ratelimit-unified-*` headers. Those headers are a **Claude Code / OAuth** feature.
+- Confirmed against the Clawdmeter daemon source: it authenticates with `Authorization: Bearer <oauth-token>` + `anthropic-beta: oauth-2025-04-20` + `User-Agent: claude-code/...`. The "unified" 5h/7d limits are Claude Code subscription limits, not API-key billing limits.
+- **Fixed:** the poller now uses OAuth Bearer auth (commit `6083f39`). Re-verified on hardware — a live poll returned `unified-5h-utilization = "0.82"`, `unified-7d-utilization = "0.05"`; the parser produced session 82% / weekly 5%; `outcome=0` (POLL_OK). NVS last-known-good restore also confirmed working across a real reboot (`[boot] restored usage: session=82% weekly=5%`).
+
+### What this validated on hardware
+
+- TLS to `api.anthropic.com` against the pinned GTS Root R4 — **works** (the Phase 2 headline risk, cleared on real hardware).
+- Poll loop, header parsing (fraction format `0.82` → 82%), state machine, NVS save/restore — all confirmed.
+- Single poll latency ≈ 4.4-4.5 s (close to the 5 s p95 budget — watch it).
+
+### New required work (NOT in Phase 2 scope — needs its own phase)
+
+The stored credential is now a **Claude Code OAuth access token** (`sk-ant-oat01-...`), which **expires (~22 h observed)**. Two new problems, one root:
+
+1. **Token refresh.** A static access token dies in ~a day; "unattended for 7+ days" is impossible without the device holding a **refresh token** and refreshing itself. Refresh needs Claude Code's OAuth client internals (token endpoint, client_id) — to be researched.
+2. **Onboarding UX.** A user cannot be expected to paste a 108-char OAuth token. The product answer is the device doing an OAuth flow itself. Options discussed:
+   - **Best:** "Log in with Claude" in onboarding — captive portal does OAuth authorization-code + PKCE; user authenticates on claude.ai; device receives access + refresh tokens and self-refreshes. (Redirect must happen after the device is on the home LAN, since the OAuth flow needs internet + reaching the device.)
+   - **Interim:** a one-shot `pair` helper script that reads the Keychain credential (incl. refresh token) and pushes it to the device — one command, no daemon.
+   - **Current (dev-only):** manual token paste — not shippable.
+
+   The input method and the refresh flow are the *same problem*: onboarding must deliver a **refresh token**. This revisits ADRs 002 / 003 / 005 and deserves a `/2_pm` planning pass as its own phase.
+
+### Files Changed
+
+```text
+m5clawd/config.h        — ANTHROPIC_OAUTH_BETA, ANTHROPIC_USER_AGENT;
+                          model -> claude-haiku-4-5-20251001
+m5clawd/poller.ino      — Authorization: Bearer + anthropic-beta header;
+                          User-Agent; body content "." -> "hi"
+m5clawd/wifi_portal.ino — portal field relabelled "Claude Code OAuth token",
+                          maxlen 120 -> 200
+docs/Phase 2/PHASE_TASKS.md — hardware-validation note; 5.2 partial, 5.3 updated
+```
+
+All committed on `phase-2-20260515` (commit `6083f39`). Working tree clean.
+
+### Known Issues
+
+| Issue | Severity | Impact | Notes |
+| ----- | -------- | ------ | ----- |
+| **Token leak** | HIGH | Kevin's Claude Code OAuth access + refresh tokens were printed to the terminal by a bad command (heredoc/stdin collision) and are in this session's transcript | Re-authenticate Claude Code to rotate. The refresh token is the sensitive one. |
+| OAuth token expiry | HIGH | Device stops polling (`auth failed`) in ~22 h until re-onboarded | The root reason a refresh flow / proper onboarding is the next phase. |
+| Post-onboarding power-cycle | LOW | After portal save the device showed "phone connected" then returned to setup; a manual power-cycle fixed it | Phase 1 known issue recurred — harden `station_connect()` (more retries / pre-connect delay). |
+| Usage screen not photographed | MED | Layout/fonts/colors still visually unconfirmed | Device is showing 82%/5% live — photograph it. |
+| Single poll ~4.5 s | LOW | Near the 5 s p95 target | Watch; revisit if it regresses. |
+
+### Next Session Should
+
+1. Run `/2_pm` to plan a new phase for **OAuth onboarding + token refresh** — this is the gating work for a real product. Decide between captive-portal OAuth (best) and a pairing helper (interim); expect new ADRs.
+2. Finish the Phase 2 hardware items that are still valid: smoke scenario 3 (WiFi drop), the bad-token path, photograph the Usage screen, harden `station_connect()`.
+3. Branch `phase-2-20260515` is unpushed (11 commits) — push when ready; consider a PR.
+4. `/6_doc` — `PHASE_PRD.md` still describes the `x-api-key` model and Amazon/ISRG roots; it needs reconciling with the OAuth reality.
+
+---
+
 ## Session 6 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
