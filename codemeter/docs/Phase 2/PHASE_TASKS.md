@@ -1,6 +1,6 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 5/16 complete — Epic 1 done (pure-logic foundation)
+**Status:** 9/16 complete — Epics 1 + 2 done (pure-logic foundation, HTTPS poller)
 **Updated:** 2026-05-15
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for code snippets and commands.
@@ -52,29 +52,34 @@
 > Per docs/2_ARCHITECTURE.md "Poller". TLS to `api.anthropic.com` is the
 > headline risk — do Task 2.1 before writing poll logic.
 
-- [ ] **2.1 Validate TLS to `api.anthropic.com` + bundle root CA(s)** (`certs.h`)
-  - [ ] Probe the served chain: `openssl s_client -connect api.anthropic.com:443 -showcerts`
-  - [ ] Bundle the chaining root(s) — Amazon Root CA 1 and ISRG Root X1 — as PEM string literals in `certs.h`
-  - [ ] On-device sanity check: `WiFiClientSecure` + `setCACert` connects to `api.anthropic.com:443` and the handshake succeeds
-  - [ ] No `setInsecure()` — if validation fails, fix the bundled root, do not bypass
+- [x] **2.1 Validate TLS to `api.anthropic.com` + bundle root CA** (`certs.h`)
+  - [x] Probed the served chain (`openssl s_client`): `leaf -> WE1 -> GTS Root R4` — **Google Trust Services**, not the Amazon/ISRG roots the PRD assumed
+  - [x] Bundled the self-signed GTS Root R4 (valid until 2036) as a PEM literal in `certs.h` — the server sends a cross-signed R4 (expires 2028); pinning the self-signed root validates the same chain but lasts far longer
+  - [x] Verified end-to-end on the host: `openssl s_client ... -CAfile gtsr4.pem` against the live host returns `Verify return code: 0 (ok)`
+  - [x] No `setInsecure()` — the poller always validates against the pinned root
+  - Note: the PRD's two-root plan was insurance against *guessing*; the live probe removed the guesswork, so one correctly identified root replaces two. On-device handshake confirmation happens when the firmware is flashed (smoke Task 5.2).
 
-- [ ] **2.2 Build and send the poll request** (`poller.ino`)
-  - [ ] New `poller.ino` tab; `poller_poll()` opens `WiFiClientSecure` (stack-scoped) + `HTTPClient`
-  - [ ] POST `ANTHROPIC_MESSAGES_URL` with headers `x-api-key`, `anthropic-version`, `content-type`
-  - [ ] Body: `{"model":ANTHROPIC_POLL_MODEL,"max_tokens":1,"messages":[{"role":"user","content":"."}]}`
-  - [ ] `http.end()` + `client.stop()` on every path; print `[poll]` status + `ESP.getFreeHeap()` (no secret — use `secret_redactor()`)
+- [x] **2.2 Build and send the poll request** (`poller.ino`)
+  - [x] New `poller.ino` tab; `poller_poll()` opens a stack-scoped `WiFiClientSecure` + `HTTPClient` (freed every poll — heap discipline)
+  - [x] POSTs `ANTHROPIC_MESSAGES_URL` with `x-api-key` / `anthropic-version` / `content-type` headers
+  - [x] Body is the minimal `claude-haiku-4-5`, `max_tokens:1` request
+  - [x] `http.end()` + `client.stop()` on every path; logs `[poll] code=.. t=..ms heap=.. key=<redacted>` via `secret_redactor()`
 
-- [ ] **2.3 Extract headers + detect body errors -> `UsageData`** (`poller.ino`)
-  - [ ] `http.collectHeaders()` for the four `anthropic-ratelimit-unified-*` names; on the FIRST real poll, dump *all* headers to serial and confirm the exact names
-  - [ ] Feed header values into `parse_anthropic_headers()` (Epic 1)
-  - [ ] On non-2xx, parse the body with ArduinoJson 6 (`StaticJsonDocument`) -> map `error.type` to `AUTH_FAILED` / `RATE_LIMITED` / `API_UNREACHABLE`
-  - [ ] Set `last_poll_unix` (or a `millis()`-based stamp) on success
+- [x] **2.3 Extract headers + detect body errors -> `UsageData`** (`poller.ino`)
+  - [x] `collectHeaders()` for the four rate-limit headers; first-poll dump logs their resolved values to confirm names on hardware
+  - [x] Feeds header values into `parse_anthropic_headers()` with an NTP-derived epoch
+  - [x] On non-2xx, parses the body with ArduinoJson 6 (`StaticJsonDocument<512>`) -> maps HTTP code + `error.type` to `AUTH_FAIL` / `RATE_LIMITED` / `API_UNREACHABLE`
+  - [x] `last_poll_unix` set from `poller_time_now()` on success
+  - **Header names + formats CONFIRMED** against the Clawdmeter daemon source (`Clawdmeter/daemon/claude_usage_daemon.py`): the windows are named **`7d`** (not `week` — the architecture doc + PRD were wrong); utilization is a **0.0..1.0 fraction**; reset is an **absolute Unix timestamp**. `parse_headers.{h,cpp}` + tests were revised to match (Epic 1 had assumed otherwise). The epoch-timestamp reset means the device needs wall-clock time — see NTP below.
 
-- [ ] **2.4 Periodic poll loop + backoff** (`m5clawd.ino`)
-  - [ ] Fire the first poll immediately on `WL_CONNECTED`
-  - [ ] In `loop()`, poll when the state machine's next-delay has elapsed; non-blocking w.r.t. `M5.update()`/buttons
-  - [ ] Feed each poll outcome through the Epic 1 state machine; apply the backoff delay
-  - [ ] Detect WiFi loss (`WiFi.status() != WL_CONNECTED`) -> `WIFI_DOWN`; attempt reconnect; restore on return
+- [x] **2.4 Periodic poll loop + backoff** (`m5clawd.ino`)
+  - [x] First poll fires immediately once `loop()` runs (`nextPollAtMs` set in `setup()`)
+  - [x] `do_poll()` polls when the backoff-adjusted interval elapses; the poll itself blocks for its TLS round-trip, but `loop()`/buttons run normally between polls
+  - [x] Each outcome goes through the Epic 1 state machine; `sm_next_delay_s()` drives the backoff
+  - [x] WiFi loss -> `POLL_WIFI_DOWN`; `WiFi.setAutoReconnect(true)` + the retry loop restore the link
+  - [x] **NTP added** — `poller_begin()` calls `configTime()`; `poller_time_now()` returns the epoch (0 until synced). Required because reset headers are absolute timestamps. (PRD had NTP as an open question — the confirmed header format makes it mandatory.)
+
+**Build:** `arduino-cli compile --profile m5clawd` clean, no warnings (sketch 85% of flash — TLS/mbedTLS is heavy; ~189 KB headroom left for Epic 3).
 
 ---
 

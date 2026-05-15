@@ -1,25 +1,28 @@
 // m5clawd.ino — M5Clawd firmware entry point.
 //
 // Standalone WiFi Claude-usage display for M5Stack Core Basic (ESP32).
-// Phase 1: captive-portal onboarding, WiFi station mode, diagnostic screens.
-// The Anthropic poller and the Usage screen arrive in Phase 2.
+// Captive-portal onboarding, WiFi station mode, and the Anthropic usage poller.
 //
 // Copy-and-strip origin (ADR 006): the WiFiManager onboarding pattern is
 // inherited from the Crypto_Coin_TickerUS_Stock reference; all crypto/stock/
 // chart/sensor/SD code has been stripped.
 //
 // The sketch is split into .ino tabs (Arduino concatenates them):
-//   m5clawd.ino       — globals, setup(), loop(), button handling
+//   m5clawd.ino       — globals, setup(), loop(), button handling, poll loop
 //   wifi_portal.ino   — WiFiManager captive-portal glue
 //   secrets_store.ino — NVS persistence of the Anthropic API key
+//   poller.ino        — Anthropic HTTPS poll + NTP time
 //   ui.ino            — M5.Lcd screen drawing
-// Shared constants and cross-tab prototypes live in config.h.
+// Pure-logic modules (parse_headers, format_helpers, state_machine) are plain
+// .cpp/.h pairs. Shared constants and cross-tab prototypes live in config.h.
 
 #include <M5Stack.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>   // poller.ino — TLS to api.anthropic.com
+#include <HTTPClient.h>         // poller.ino — HTTPS POST
 #include <SPIFFS.h>
 #include <Preferences.h>
-#include <ArduinoJson.h>   // unused in Phase 1; kept for the Phase 2 poller
+#include <ArduinoJson.h>        // poller.ino — error-body parsing
 #include "Free_Fonts.h"
 #include "WiFiManager.h"
 #include "config.h"
@@ -33,6 +36,12 @@ enum Screen { SCREEN_SPLASH, SCREEN_STATUS };
 static Screen currentScreen     = SCREEN_SPLASH;
 static bool   backlightOn       = true;
 static bool   resetConfirmShown = false;
+
+// --- Poll-loop state (visible to ui.ino) -----------------------------------
+UsageData       g_usage      = {};   // latest usage; status UNKNOWN until first poll
+PollState       g_pollState  = {};   // poll-outcome history + backoff schedule
+String          g_apiKey;            // Anthropic API key, cached at boot
+static uint32_t nextPollAtMs = 0;    // millis() deadline for the next poll
 
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 30000;
 
@@ -67,24 +76,31 @@ void setup() {
   }
 
   Serial.println("[boot] configured -> station mode");
+  g_apiKey = secrets_get_api_key();
   ui_show_splash();
   delay(600);
   ui_show_connecting();
 
-  if (!station_connect()) {
+  WiFi.setAutoReconnect(true);             // keep the link up across blips
+  bool connected = station_connect();
+  if (!connected) {
     Serial.println("[wifi] timed out, retrying once");
     WiFi.disconnect();
-    if (!station_connect()) {
-      Serial.println("[wifi] connect failed");
-      ui_show_wifi_error();
-      return;                              // loop() still polls buttons
-    }
+    connected = station_connect();
   }
 
-  Serial.printf("[wifi] connected, IP %s\n",
-                WiFi.localIP().toString().c_str());
-  currentScreen = SCREEN_STATUS;
-  ui_show_status();
+  poller_begin();                          // start NTP (syncs once WiFi is up)
+  nextPollAtMs = millis();                 // first poll as soon as loop() runs
+
+  if (connected) {
+    Serial.printf("[wifi] connected, IP %s\n",
+                  WiFi.localIP().toString().c_str());
+    currentScreen = SCREEN_STATUS;
+    ui_show_status();
+  } else {
+    Serial.println("[wifi] connect failed -- loop will keep retrying");
+    ui_show_wifi_error();                  // loop() still polls + retries WiFi
+  }
 }
 
 // --- Buttons ----------------------------------------------------------------
@@ -127,9 +143,45 @@ static void buttons_poll() {
   }
 }
 
+// --- Poll loop --------------------------------------------------------------
+// Run one poll, fold the outcome into the state machine, schedule the next.
+// A poll blocks for its TLS round-trip (a few seconds); between polls loop()
+// runs normally so buttons stay responsive.
+static void do_poll() {
+  UsageData fresh = {};
+  PollOutcome outcome = poller_poll(g_apiKey, &fresh);
+  sm_advance(&g_pollState, outcome);
+
+  if (outcome == POLL_OK) {
+    fresh.stale = false;
+    g_usage = fresh;
+  } else {
+    // Keep the last-known-good numbers on screen; refresh only status/stale.
+    g_usage.status = g_pollState.status;
+    g_usage.stale  = sm_data_is_stale(&g_pollState);
+  }
+
+  uint32_t delay_s =
+      sm_next_delay_s(&g_pollState, POLL_INTERVAL_S, POLL_BACKOFF_MAX_S);
+  nextPollAtMs = millis() + delay_s * 1000UL;
+
+  Serial.printf("[poll] outcome=%d status=%d session=%u%% weekly=%u%% "
+                "stale=%d next=%us\n",
+                outcome, g_usage.status, g_usage.session_pct,
+                g_usage.weekly_pct, g_usage.stale, delay_s);
+
+  if (currentScreen == SCREEN_STATUS && !resetConfirmShown) ui_show_status();
+}
+
 void loop() {
   M5.update();
   buttons_poll();
+
+  // Poll Anthropic when the (backoff-adjusted) interval has elapsed.
+  if (g_apiKey.length() > 0 && !resetConfirmShown &&
+      (int32_t)(millis() - nextPollAtMs) >= 0) {
+    do_poll();
+  }
 
   // Refresh the live status fields periodically.
   static unsigned long lastStatusRefresh = 0;

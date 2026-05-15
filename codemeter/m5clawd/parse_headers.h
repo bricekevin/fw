@@ -5,18 +5,24 @@
 // host unit tests can exercise it; the poller passes header values straight
 // from HTTPClient::header(...).c_str().
 //
-// HEADER FORMAT ASSUMPTIONS (open question in PHASE_PRD — confirm against a
-// real 200 response in Task 2.3, then revise this file if they differ):
+// HEADER FORMATS — confirmed 2026-05-15 against the Clawdmeter reference
+// daemon (Clawdmeter/daemon/claude_usage_daemon.py), which polls the same
+// live API. The four headers (note "7d", not "week"):
 //
-//   *-utilization : a number. A decimal value <= 1.0 is read as a FRACTION
-//                   ("0.42" -> 42%); any other number is read as an
-//                   already-scaled PERCENT ("42" -> 42%, "85.5" -> 85%).
-//                   The result is rounded and clamped to 0..100.
-//   *-reset       : a number of seconds. A value >= UNIX_EPOCH_THRESHOLD is
-//                   treated as an absolute Unix timestamp and `now_unix` is
-//                   subtracted to get seconds-until-reset; a smaller value is
-//                   treated as an already-relative seconds count. A reset in
-//                   the past, or any unparseable value, yields 0.
+//   anthropic-ratelimit-unified-5h-utilization
+//   anthropic-ratelimit-unified-5h-reset
+//   anthropic-ratelimit-unified-7d-utilization
+//   anthropic-ratelimit-unified-7d-reset
+//
+//   *-utilization : a fraction in [0.0, 1.0]. The daemon computes the percent
+//                   as round(value * 100) unconditionally — so "0.42" is 42%.
+//                   parse_utilization() does the same and clamps to 0..100.
+//   *-reset       : an absolute Unix timestamp (epoch seconds). Seconds-until-
+//                   reset is value - now_unix, so the device MUST know the
+//                   current time (NTP) for the reset fields to be meaningful;
+//                   with now_unix == 0 a reset resolves to 0. parse_reset()
+//                   also still accepts an already-relative small value as a
+//                   defensive fallback (see UNIX_EPOCH_THRESHOLD).
 //
 // A missing (nullptr / empty) or unparseable utilization header marks that
 // window invalid; parse_anthropic_headers() then returns status UNKNOWN.
@@ -26,26 +32,29 @@
 #include <stdint.h>
 #include "usage_data.h"
 
-// Values at or above this are assumed to be absolute Unix timestamps rather
-// than relative second counts (a relative window tops out at one week).
+// Values at or above this are treated as absolute Unix timestamps; smaller
+// values are treated as an already-relative second count (defensive fallback —
+// the observed format is always an absolute timestamp).
 static const uint32_t UNIX_EPOCH_THRESHOLD = 1000000000UL;  // 2001-09-09
 
-// Parse a single utilization header value into a 0..100 percentage.
-// Returns true on success and writes *out_pct; returns false if `s` is
-// null/empty/unparseable (leaves *out_pct untouched).
+// Parse a utilization header value (a 0.0..1.0 fraction) into a 0..100
+// percentage. Returns true and writes *out_pct on success; returns false if
+// `s` is null/empty/unparseable/negative (leaves *out_pct untouched).
 bool parse_utilization(const char *s, uint8_t *out_pct);
 
-// Parse a single reset header value into seconds-until-reset.
-// `now_unix` is the current epoch (pass 0 if the device has no clock — an
-// absolute-timestamp reset then degrades to 0). Returns 0 on a null/empty/
-// unparseable value or a reset already in the past.
+// Parse a reset header value into seconds-until-reset.
+// The value is an absolute Unix timestamp; `now_unix` is the current epoch
+// (pass 0 if the device has no clock — the reset then resolves to 0). A reset
+// already in the past, or any null/empty/unparseable value, yields 0.
 uint32_t parse_reset(const char *s, uint32_t now_unix);
 
 // Parse all four headers into a UsageData. session_pct/weekly_pct and the two
 // reset fields are populated; last_poll_unix is set to now_unix; stale is
 // false. status is OK when both utilization headers parsed, UNKNOWN otherwise.
+//   util_5h / reset_5h   <- the -5h- headers
+//   util_7d / reset_7d   <- the -7d- headers (UsageData calls this "weekly")
 UsageData parse_anthropic_headers(const char *util_5h,
-                                  const char *util_week,
+                                  const char *util_7d,
                                   const char *reset_5h,
-                                  const char *reset_week,
+                                  const char *reset_7d,
                                   uint32_t now_unix);

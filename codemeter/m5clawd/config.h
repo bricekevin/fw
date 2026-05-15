@@ -7,7 +7,8 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include "usage_data.h"   // the shared UsageData struct (pure, host-testable)
+#include "usage_data.h"     // the shared UsageData struct (pure, host-testable)
+#include "state_machine.h"  // PollState / PollOutcome (pure, host-testable)
 
 // ---------------------------------------------------------------------------
 // Firmware identity
@@ -23,6 +24,14 @@
 
 // Backoff ceiling (seconds) after repeated poll failures.
 #define POLL_BACKOFF_MAX_S 300
+
+// HTTP/TLS timeout for a single Anthropic poll (milliseconds).
+#define POLL_HTTP_TIMEOUT_MS 15000
+
+// NTP servers — the device needs wall-clock epoch time because the rate-limit
+// reset headers are absolute Unix timestamps (see parse_headers.h).
+#define NTP_SERVER_1 "pool.ntp.org"
+#define NTP_SERVER_2 "time.nist.gov"
 
 // ---------------------------------------------------------------------------
 // WiFi provisioning (captive portal)
@@ -103,6 +112,11 @@ String      secrets_get_api_key();
 void        secrets_reset();
 void        saveParamCallback();
 const char *secret_redactor(const String &k);
+
+// poller.ino
+void        poller_begin();
+PollOutcome poller_poll(const String &api_key, UsageData *out);
+uint32_t    poller_time_now();
 
 // ui.ino
 void ui_show_splash();
