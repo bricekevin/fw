@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# MCP / tooling caches
+.playwright-mcp/
+
+# Read-only reference clone — re-clone per the README, not tracked here.
+# (Clawdmeter has its own .git; tracking it would create an embedded-repo mess.)
+Clawdmeter/
+
+# Build artifacts
+m5clawd/build/
+*.bin
+*.elf
+*.hex
