@@ -7,6 +7,66 @@
 
 ---
 
+## Session 4 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1.5 h
+**Focus:** `/3_dev` Phase 2 Epic 2 — the Anthropic HTTPS poller, TLS, and the poll loop.
+
+### What happened
+
+Implemented Epic 2 (4 tasks) in worktree `../theClaw-phase-2-20260515`. The device now polls `api.anthropic.com` over validated TLS, parses the rate-limit headers into `UsageData`, and runs a backoff-driven poll loop. Two live probes during the work overturned assumptions baked into the foundation docs — see Decisions.
+
+### Completed (Phase 2 Epic 2 — 9/16 tasks total)
+
+- [x] **2.1** `certs.h` — TLS root CA. Probed the live chain; bundled the self-signed GTS Root R4.
+- [x] **2.2** `poller.ino` — `WiFiClientSecure` + `HTTPClient` POST, stack-scoped for heap safety.
+- [x] **2.3** rate-limit header extraction + ArduinoJson 6 error-body classification.
+- [x] **2.4** `m5clawd.ino` — `do_poll()` loop, exponential backoff, NTP, WiFi auto-reconnect.
+
+### Decisions made (IMPORTANT — these overturn earlier doc assumptions)
+
+- **TLS chain is Google Trust Services, not Amazon/ISRG.** A live `openssl s_client` probe showed `api.anthropic.com` chains `leaf -> WE1 -> GTS Root R4`. The PRD/risk table assumed Amazon Root CA 1 / ISRG Root X1 — wrong. `certs.h` pins the **self-signed GTS Root R4** (valid to 2036). The server actually sends a *cross-signed* R4 (expires 2028); the self-signed root — same key — validates the identical chain and lasts longer. Verified: `openssl s_client ... -CAfile gtsr4.pem` returns `Verify return code: 0 (ok)`.
+- **Rate-limit header names use `7d`, not `week`.** Confirmed against the Clawdmeter daemon source (`Clawdmeter/daemon/claude_usage_daemon.py`): `anthropic-ratelimit-unified-7d-utilization` / `-7d-reset`. **`docs/2_ARCHITECTURE.md` and `docs/Phase 2/PHASE_PRD.md` both say `-week-` — they are now factually wrong** and should be corrected (see Known Issues).
+- **Header value formats confirmed -> NTP is mandatory.** The daemon shows utilization is a `0.0..1.0` fraction (`pct = round(value*100)`) and reset is an absolute Unix timestamp (`(reset - now)`). `parse_headers.{h,cpp}` + its tests were revised from the Epic 1 assumptions to match. Because reset is an absolute timestamp, the device must know wall-clock time — `poller_begin()` now starts NTP (`configTime`), and `poller_time_now()` returns 0 until it syncs (reset countdowns read 0 on the very first poll, correct thereafter). The PRD had NTP as an open question; the confirmed format makes it required.
+
+### Files Changed
+
+```text
+m5clawd/certs.h            — new: pinned GTS Root R4 PEM + provenance notes
+m5clawd/poller.ino         — new: TLS poll, header parse, error classify, NTP
+m5clawd/m5clawd.ino        — poll loop (do_poll), backoff, auto-reconnect,
+                             g_usage/g_pollState/g_apiKey globals; lib includes
+m5clawd/config.h           — includes state_machine.h; poller prototypes;
+                             POLL_HTTP_TIMEOUT_MS + NTP_SERVER_* constants
+m5clawd/parse_headers.{h,cpp} — revised to confirmed formats (fraction / epoch)
+m5clawd/test/parse_headers_test.cpp — tests updated to the confirmed formats
+docs/Phase 2/PHASE_TASKS.md — Epic 2 checked off
+```
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` — clean, no warnings. Sketch now **85%** of flash (was 71%; +14% is mbedTLS/WiFiClientSecure/HTTPClient). ~189 KB headroom remains for Epic 3.
+- `m5clawd/test/run.sh` — 100 checks across 3 suites, all pass.
+- TLS root verified against the live host with `openssl` (see Decisions).
+- **Not yet verified on hardware:** the actual on-device TLS handshake, a real poll, and the first-poll header-name dump. Needs a flash (smoke Task 5.2).
+
+### Known Issues
+
+| Issue | Severity | Impact | Notes |
+| ----- | -------- | ------ | ----- |
+| `2_ARCHITECTURE.md` + `PHASE_PRD.md` say `-week-` rate-limit headers | MED | Docs contradict the shipped code (`-7d-`) | Correct both during `/6_doc`. The code/`PHASE_TASKS.md` are authoritative. |
+| On-device TLS/poll unverified | MED | Poller is compile-clean + host-probed but never run on the device | Flash and watch serial for `[poll] code=200` and the first-poll header dump. If headers read `(empty)`, the names need another look. |
+| Sketch at 85% of flash | LOW | Headroom shrinking | Fine for Epic 3 (UI draw code is small). Watch it; an OTA partition scheme may need thought before Phase 3 art. |
+
+### Next Session Should
+
+1. Continue `/3_dev` Phase 2 with **Epic 3** — the Usage screen + status overlays (`ui.ino`). It consumes `g_usage`; the Epic 1 formatters (`format_helpers`) are ready and unused so far.
+2. Then **Epic 4** — last-known-good `UsageData` persistence to NVS + heap/reconnect hardening.
+3. When hardware is available, flash and run smoke Task 5.2 — this is the first real on-device TLS/poll test.
+
+---
+
 ## Session 3 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
