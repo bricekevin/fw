@@ -1,6 +1,6 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 9/20 complete — Epics 1 + 2 done (pure-logic foundation, HTTPS poller)
+**Status:** 13/20 complete — Epics 1-3 done (pure-logic, HTTPS poller, Usage UI)
 **Updated:** 2026-05-15
 
 > Task count: 20 numbered tasks across 5 epics (5/4/4/2/5). The PRD and
@@ -90,25 +90,29 @@
 
 > Per docs/3_DESIGN_SYSTEM.md sections "2. Usage" and "State Indicators".
 
-- [ ] **3.1 Usage screen layout** (`ui.ino`)
-  - [ ] `ui_show_usage(const UsageData&)` — status bar + SESSION card + WEEKLY card per the design system
-  - [ ] Big % values in font 7; titles in the header font; countdowns in body font; all colors from `config.h`
-  - [ ] Status bar: WiFi glyph, last-poll relative time, free-heap indicator
+- [x] **3.1 Usage screen layout** (`ui.ino`)
+  - [x] `ui_show_usage(const UsageData&)` — status bar + SESSION (5h) + WEEKLY (7d) cards
+  - [x] Big % values in font 7 (`%` sign in `FSSB18` beside it); titles in `FSS9`; countdowns in `FSS9`; all colors from `config.h`
+  - [x] Status bar: status badge, "updated Xs ago" (from `format_relative_time`), free-heap KB
 
-- [ ] **3.2 Partial redraw of changing fields** (`ui.ino`)
-  - [ ] `ui_update_usage(const UsageData&)` redraws only the % numbers, countdowns, and status badge — not titles/background
-  - [ ] Track the last-rendered values; skip a field whose value is unchanged to cut flicker
-  - [ ] Full repaint only on a screen switch into Usage
+- [x] **3.2 Partial redraw of changing fields** (`ui.ino`)
+  - [x] `ui_update_usage(const UsageData&)` redraws only the % numbers, countdowns, and badge — titles/background stay put
+  - [x] Per-field static cache; a field whose value is unchanged is skipped (a status change forces value/reset redraw, since it flips stale/UNKNOWN rendering)
+  - [x] Full repaint only via `ui_show_usage()` on a screen switch into Usage
 
-- [ ] **3.3 Status overlays / badges** (`ui.ino`)
-  - [ ] Render a distinct badge for each non-OK `Status`: `wifi...` / `wifi-` / `api-` / `auth!` / `rate!`, plus a "no API key" state
-  - [ ] When data is stale, keep the last good numbers visible and show the stale badge (do not blank the cards)
-  - [ ] Glyph + color together, never color alone (accessibility rule)
+- [x] **3.3 Status overlays / badges** (`ui.ino`)
+  - [x] Distinct badge per `Status` — `connecting` / `wifi down` / `api error` / `auth failed` / `rate limited` / `poll ok`
+  - [x] Stale data keeps the last-good numbers (dimmed to `COLOR_TEXT_DIM`); `UNKNOWN` (no poll yet) shows `--` placeholders, never blanks
+  - [x] Badge is text + color, never color alone (accessibility rule)
+  - Note: badge wording uses readable phrases (`auth failed`) rather than the design doc's terse `auth!` glyphs — same intent, clearer on the 320 px panel. Minor, deliberate deviation.
 
-- [ ] **3.4 Wire buttons into the 3-screen cycle** (`m5clawd.ino`)
-  - [ ] Extend `Screen` to `SCREEN_SPLASH` / `SCREEN_USAGE` / `SCREEN_STATUS`; button A cycles all three
-  - [ ] Button B triggers an immediate poll (force refresh)
-  - [ ] Default to `SCREEN_USAGE` once the first poll succeeds; auto-jump to `SCREEN_STATUS` if `Status != OK` for > 2 polls (design-system note)
+- [x] **3.4 Wire buttons into the 3-screen cycle** (`m5clawd.ino`)
+  - [x] `Screen` is `SCREEN_SPLASH` / `SCREEN_USAGE` / `SCREEN_STATUS`; button A cycles all three (`% SCREEN_COUNT`)
+  - [x] Button B triggers an immediate poll (`nextPollAtMs = millis()`)
+  - [x] Boot defaults to `SCREEN_USAGE`; first good poll after a failed boot-connect surfaces it; auto-jumps to `SCREEN_STATUS` after 3 consecutive failures
+
+**Build:** `arduino-cli compile --profile m5clawd` clean, no warnings (sketch 86% of flash). Host tests still green (100 checks).
+**Not verified:** the rendered screen — no hardware in this session. Needs a flash + photo (`/5_visual` / smoke Task 5.2). Layout y-offsets in `ui.ino` (`USG_*`) are hand-tuned and may need adjustment against a photo.
 
 ---
 

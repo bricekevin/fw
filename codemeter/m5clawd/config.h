@@ -7,8 +7,9 @@
 
 #include <stdint.h>
 #include <Arduino.h>
-#include "usage_data.h"     // the shared UsageData struct (pure, host-testable)
-#include "state_machine.h"  // PollState / PollOutcome (pure, host-testable)
+#include "usage_data.h"      // the shared UsageData struct (pure, host-testable)
+#include "state_machine.h"   // PollState / PollOutcome (pure, host-testable)
+#include "format_helpers.h"  // countdown / relative-time formatters (pure)
 
 // ---------------------------------------------------------------------------
 // Firmware identity
@@ -122,6 +123,8 @@ uint32_t    poller_time_now();
 void ui_show_splash();
 void ui_show_connecting();
 void ui_show_status();
+void ui_show_usage(const UsageData &d);
+void ui_update_usage(const UsageData &d);
 void ui_show_provisioning();
 void ui_show_wifi_error();
 void ui_show_reset_confirm();

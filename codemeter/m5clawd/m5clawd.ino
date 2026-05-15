@@ -32,7 +32,7 @@ Preferences          preferences;
 WiFiManager          wifiManager;
 WiFiManagerParameter apiKeyField;          // the single custom portal field
 
-enum Screen { SCREEN_SPLASH, SCREEN_STATUS };
+enum Screen { SCREEN_SPLASH, SCREEN_USAGE, SCREEN_STATUS, SCREEN_COUNT };
 static Screen currentScreen     = SCREEN_SPLASH;
 static bool   backlightOn       = true;
 static bool   resetConfirmShown = false;
@@ -41,6 +41,7 @@ static bool   resetConfirmShown = false;
 UsageData       g_usage      = {};   // latest usage; status UNKNOWN until first poll
 PollState       g_pollState  = {};   // poll-outcome history + backoff schedule
 String          g_apiKey;            // Anthropic API key, cached at boot
+uint32_t        g_lastPollMs = 0;    // millis() of the last successful poll (0 = none)
 static uint32_t nextPollAtMs = 0;    // millis() deadline for the next poll
 
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 30000;
@@ -95,8 +96,8 @@ void setup() {
   if (connected) {
     Serial.printf("[wifi] connected, IP %s\n",
                   WiFi.localIP().toString().c_str());
-    currentScreen = SCREEN_STATUS;
-    ui_show_status();
+    currentScreen = SCREEN_USAGE;          // Usage view; "--" until the first poll
+    ui_show_usage(g_usage);
   } else {
     Serial.println("[wifi] connect failed -- loop will keep retrying");
     ui_show_wifi_error();                  // loop() still polls + retries WiFi
@@ -110,16 +111,24 @@ static void backlight_toggle() {
 }
 
 static void show_current_screen() {
-  if (currentScreen == SCREEN_SPLASH) ui_show_splash();
-  else                                ui_show_status();
+  switch (currentScreen) {
+    case SCREEN_USAGE:  ui_show_usage(g_usage); break;
+    case SCREEN_STATUS: ui_show_status();       break;
+    default:            ui_show_splash();       break;
+  }
 }
 
 static void buttons_poll() {
-  // Button A — cycle Splash <-> Status.
+  // Button A — cycle Splash -> Usage -> Status.
   if (M5.BtnA.wasPressed()) {
-    currentScreen = (currentScreen == SCREEN_SPLASH) ? SCREEN_STATUS
-                                                     : SCREEN_SPLASH;
+    currentScreen = (Screen)((currentScreen + 1) % SCREEN_COUNT);
     show_current_screen();
+  }
+
+  // Button B — force an immediate poll on the next loop pass.
+  if (M5.BtnB.wasPressed()) {
+    Serial.println("[poll] manual refresh (button B)");
+    nextPollAtMs = millis();
   }
 
   // Button C — long-press (5 s) arms the NVS-wipe; +2 s more commits it.
@@ -155,6 +164,7 @@ static void do_poll() {
   if (outcome == POLL_OK) {
     fresh.stale = false;
     g_usage = fresh;
+    g_lastPollMs = millis();
   } else {
     // Keep the last-known-good numbers on screen; refresh only status/stale.
     g_usage.status = g_pollState.status;
@@ -170,7 +180,22 @@ static void do_poll() {
                 outcome, g_usage.status, g_usage.session_pct,
                 g_usage.weekly_pct, g_usage.stale, delay_s);
 
-  if (currentScreen == SCREEN_STATUS && !resetConfirmShown) ui_show_status();
+  if (resetConfirmShown) return;
+
+  // First good poll after a failed boot-time connect: surface the Usage view.
+  if (outcome == POLL_OK && currentScreen == SCREEN_SPLASH) {
+    currentScreen = SCREEN_USAGE;
+    ui_show_usage(g_usage);
+    return;
+  }
+  // Sustained failure (just crossed >2 in a row): jump to the diagnostic view.
+  if (g_pollState.consecutive_fails == 3 && currentScreen == SCREEN_USAGE) {
+    currentScreen = SCREEN_STATUS;
+    ui_show_status();
+    return;
+  }
+  if (currentScreen == SCREEN_USAGE)       ui_update_usage(g_usage);
+  else if (currentScreen == SCREEN_STATUS) ui_show_status();
 }
 
 void loop() {
@@ -183,12 +208,14 @@ void loop() {
     do_poll();
   }
 
-  // Refresh the live status fields periodically.
-  static unsigned long lastStatusRefresh = 0;
-  if (currentScreen == SCREEN_STATUS && !resetConfirmShown &&
-      millis() - lastStatusRefresh >= 3000) {
-    lastStatusRefresh = millis();
-    ui_show_status();
+  // Refresh the live fields periodically: the Status screen's heap/uptime and
+  // the Usage screen's "updated Xs ago" stamp. The Usage refresh is a partial
+  // redraw, so it never flickers the cards.
+  static unsigned long lastScreenRefresh = 0;
+  if (!resetConfirmShown && millis() - lastScreenRefresh >= 3000) {
+    lastScreenRefresh = millis();
+    if (currentScreen == SCREEN_STATUS)     ui_show_status();
+    else if (currentScreen == SCREEN_USAGE) ui_update_usage(g_usage);
   }
   delay(20);
 }

@@ -91,6 +91,172 @@ void ui_show_status() {
   ui_status_row(x, y, "Uptime", ui_format_uptime(millis() / 1000));
 }
 
+// --- Usage screen ----------------------------------------------------------
+// Layout (320x240): an 18px status bar, then two stacked cards (SESSION /
+// WEEKLY). See docs/3_DESIGN_SYSTEM.md section "2. Usage". ui_show_usage()
+// paints the whole screen; ui_update_usage() redraws only the fields whose
+// value changed, so a per-poll refresh never flickers titles or background.
+//
+// The y-offsets below are hand-tuned for the panel; adjust against a photo
+// (the embedded /5_visual step) if a card looks cramped.
+
+#define USG_CARD1_TOP  (STATUSBAR_H)   // 18
+#define USG_CARD2_TOP  129
+#define USG_TITLE_DY   6               // title y within a card
+#define USG_VAL_TOP    24              // value area: cardTop + this ...
+#define USG_VAL_H      60              // ... this tall (cleared on redraw)
+#define USG_RESET_DY   88              // reset-countdown text y within a card
+
+// Per-field cache so ui_update_usage() can skip unchanged fields.
+static int      s_usg_session = -1;
+static int      s_usg_weekly  = -1;
+static uint32_t s_usg_sreset  = 0xFFFFFFFFUL;
+static uint32_t s_usg_wreset  = 0xFFFFFFFFUL;
+static int      s_usg_status  = -1;
+static String   s_usg_updated = "";
+
+// Map a poll status to a status-bar badge (text + color). Text plus color,
+// never color alone — see the design system's accessibility note.
+static void usg_badge(UsageData::Status st, const char **txt, uint16_t *col) {
+  switch (st) {
+    case UsageData::OK:              *txt = "poll ok";     *col = COLOR_SUCCESS; break;
+    case UsageData::WIFI_DOWN:       *txt = "wifi down";   *col = COLOR_ERROR;   break;
+    case UsageData::API_UNREACHABLE: *txt = "api error";   *col = COLOR_ERROR;   break;
+    case UsageData::AUTH_FAILED:     *txt = "auth failed"; *col = COLOR_ERROR;   break;
+    case UsageData::RATE_LIMITED:    *txt = "rate limited";*col = COLOR_WARNING; break;
+    default:                         *txt = "connecting";  *col = COLOR_WARNING; break;
+  }
+}
+
+// "Updated ..." text, from the millis() stamp of the last successful poll.
+static String usg_updated_text() {
+  if (g_lastPollMs == 0) return String("updated never");
+  uint32_t ago = (millis() - g_lastPollMs) / 1000UL;
+  return String("updated ") + format_relative_time(ago).c_str();
+}
+
+static void usg_draw_statusbar(const UsageData &d) {
+  M5.Lcd.fillRect(0, 0, 320, STATUSBAR_H, COLOR_SURFACE);
+  M5.Lcd.setFreeFont(FSS9);
+  const int cy = STATUSBAR_H / 2 + 1;
+
+  const char *btxt;
+  uint16_t bcol;
+  usg_badge(d.status, &btxt, &bcol);
+  M5.Lcd.setTextDatum(ML_DATUM);
+  M5.Lcd.setTextColor(bcol);
+  M5.Lcd.drawString(btxt, PAD_EDGE, cy);
+
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.drawString(usg_updated_text(), 195, cy);
+
+  char heap[12];
+  snprintf(heap, sizeof(heap), "%uk", (unsigned)(ESP.getFreeHeap() / 1024));
+  M5.Lcd.setTextDatum(MR_DATUM);
+  M5.Lcd.drawString(heap, 320 - PAD_EDGE, cy);
+}
+
+static void usg_draw_title(int top, const char *title) {
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+  M5.Lcd.drawString(title, PAD_EDGE, top + USG_TITLE_DY);
+}
+
+// The big percentage. UNKNOWN (no poll yet) shows "--"; stale data is dimmed.
+static void usg_draw_value(int top, const UsageData &d, uint8_t pct) {
+  M5.Lcd.fillRect(0, top + USG_VAL_TOP, 320, USG_VAL_H, COLOR_BG);
+
+  if (d.status == UsageData::UNKNOWN) {
+    M5.Lcd.setFreeFont(FSSB24);
+    M5.Lcd.setTextDatum(ML_DATUM);
+    M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+    M5.Lcd.drawString("--", PAD_EDGE + 20, top + USG_VAL_TOP + USG_VAL_H / 2);
+    return;
+  }
+
+  uint16_t col = d.stale ? COLOR_TEXT_DIM : COLOR_PRIMARY;
+  char num[6];
+  snprintf(num, sizeof(num), "%u", (unsigned)pct);
+
+  int nx = PAD_EDGE + 20;
+  int ny = top + USG_VAL_TOP + 4;
+  M5.Lcd.setTextColor(col);
+  M5.Lcd.setTextFont(7);                       // 7-segment numeric, ~48 px
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.drawString(num, nx, ny);
+  int w = M5.Lcd.textWidth(num);
+
+  M5.Lcd.setFreeFont(FSSB18);
+  M5.Lcd.setTextDatum(BL_DATUM);
+  M5.Lcd.drawString("%", nx + w + 10, ny + 48);
+}
+
+static void usg_draw_reset(int top, const UsageData &d, uint32_t reset_s) {
+  M5.Lcd.fillRect(0, top + USG_RESET_DY, 320, 22, COLOR_BG);
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+
+  String t;
+  if (d.status == UsageData::UNKNOWN) t = "waiting for first poll";
+  else if (reset_s == 0)              t = "resets in --";
+  else t = String("resets in ") + format_reset_countdown(reset_s).c_str();
+  M5.Lcd.drawString(t, PAD_EDGE + 20, top + USG_RESET_DY);
+}
+
+// Full repaint — used on a screen switch into the Usage view.
+void ui_show_usage(const UsageData &d) {
+  M5.Lcd.fillScreen(COLOR_BG);
+  usg_draw_title(USG_CARD1_TOP, "SESSION  (5h)");
+  usg_draw_title(USG_CARD2_TOP, "WEEKLY  (7d)");
+  M5.Lcd.drawFastHLine(0, USG_CARD2_TOP - 2, 320, COLOR_SURFACE);
+
+  // Invalidate the field cache so ui_update_usage() draws everything.
+  s_usg_session = -1;
+  s_usg_weekly  = -1;
+  s_usg_sreset  = 0xFFFFFFFFUL;
+  s_usg_wreset  = 0xFFFFFFFFUL;
+  s_usg_status  = -1;
+  s_usg_updated = "";
+  ui_update_usage(d);
+}
+
+// Partial repaint — redraw only the fields whose value changed.
+void ui_update_usage(const UsageData &d) {
+  String upd = usg_updated_text();
+  bool status_changed = ((int)d.status != s_usg_status);
+
+  if (status_changed || upd != s_usg_updated) {
+    s_usg_status  = (int)d.status;
+    s_usg_updated = upd;
+    usg_draw_statusbar(d);
+  }
+
+  // A status change can flip stale/UNKNOWN, which affects the value + reset
+  // rendering even when the raw numbers are unchanged — so redraw on either.
+  int sp = (d.status == UsageData::UNKNOWN) ? -1 : (int)d.session_pct;
+  if (sp != s_usg_session || status_changed) {
+    s_usg_session = sp;
+    usg_draw_value(USG_CARD1_TOP, d, d.session_pct);
+  }
+  if (d.session_reset_s != s_usg_sreset || status_changed) {
+    s_usg_sreset = d.session_reset_s;
+    usg_draw_reset(USG_CARD1_TOP, d, d.session_reset_s);
+  }
+
+  int wp = (d.status == UsageData::UNKNOWN) ? -1 : (int)d.weekly_pct;
+  if (wp != s_usg_weekly || status_changed) {
+    s_usg_weekly = wp;
+    usg_draw_value(USG_CARD2_TOP, d, d.weekly_pct);
+  }
+  if (d.weekly_reset_s != s_usg_wreset || status_changed) {
+    s_usg_wreset = d.weekly_reset_s;
+    usg_draw_reset(USG_CARD2_TOP, d, d.weekly_reset_s);
+  }
+}
+
 void ui_show_provisioning() {
   M5.Lcd.fillScreen(COLOR_BG);
   ui_header("CONFIGURE WIFI");
