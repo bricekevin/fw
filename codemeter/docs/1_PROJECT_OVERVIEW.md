@@ -60,20 +60,26 @@ Result: clone → `./flash.sh` → power on → portal-pop → 5-minute total se
 
 ## Core Features
 
-### MVP (Phase 1 — captive portal + first poll)
+> Phase breakdown note: the copy-and-strip decision (ADR 006) arrived after this
+> overview's first draft. Phase 1 is now scoped to **bootstrap only** — the
+> copy-strip is itself substantial work, so Anthropic polling moved to Phase 2.
+> Phase 1's plan lives in `docs/Phase 1/`.
 
-1. **Captive-portal onboarding** — Soft-AP `M5Clawd-XXXXXX` on first boot; phone browser auto-pops a config page asking for WiFi creds + Anthropic API key.
-2. **NVS-persisted secrets** — Creds survive reboot and reflash; reset gesture (long-press button C, 5s) wipes them.
-3. **One-shot Anthropic poll on boot** — Single TLS call to `api.anthropic.com`, parse rate-limit headers, render to the display.
-4. **Usage screen** — Session %, weekly %, reset countdowns, last-poll timestamp.
-5. **Status overlays** — Clear UI for "connecting WiFi", "no API key", "rate-limit error", "WiFi down".
+### Phase 1 — Bootstrap (copy-strip + captive portal + WiFi)
 
-### Phase 2 — Reliable loop
+1. **Toolchain validation** — confirm `arduino-cli` builds against the pinned ESP32 core.
+2. **Copy-and-strip** — `m5clawd.ino` derived from the crypto ticker, stripped to a clean-compiling skeleton.
+3. **Captive-portal onboarding** — Soft-AP `M5Clawd-XXXXXX`; phone-browser config page with WiFi fields + one Anthropic API-key field.
+4. **NVS-persisted secrets** — Creds survive reboot and reflash; reset gesture (long-press button C, 5s) wipes them.
+5. **WiFi station mode + basic screens** — connects with stored creds; splash / connecting / diagnostic-status screens.
 
-1. **Periodic poll loop** with exponential backoff on failure.
-2. **TLS session reuse** to amortize handshake cost.
-3. **Heap watchdog** to catch fragmentation before it hangs the device.
-4. **Persistent state across reboots** (last-known-good usage values).
+### Phase 2 — Anthropic poller + Usage UI
+
+1. **Anthropic HTTPS poll** — TLS call to `api.anthropic.com`, parse rate-limit headers into `UsageData`.
+2. **Usage screen** — Session %, weekly %, reset countdowns, last-poll timestamp.
+3. **Periodic poll loop** with exponential backoff on failure.
+4. **Status overlays** — Clear UI for "no API key", "rate-limit error", "WiFi down", "auth failed".
+5. **Resilience** — last-known-good values persisted across reboots; heap watchdog.
 
 ### Phase 3 — Polish
 
@@ -94,13 +100,13 @@ Result: clone → `./flash.sh` → power on → portal-pop → 5-minute total se
 
 ## Timeline
 
-| Phase  | Focus                                            | Duration (estimate) |
-| ------ | ------------------------------------------------ | ------------------- |
-| Phase 1 | Bootstrap, WiFiManager, NVS, first successful poll | 1 week              |
-| Phase 2 | Reliable polling loop + status UI                | 1 week              |
-| Phase 3 | Splash animations + button interactions + battery | 1–2 weeks           |
+| Phase  | Focus                                              | Duration (estimate) |
+| ------ | -------------------------------------------------- | ------------------- |
+| Phase 1 | Bootstrap — copy-strip, captive portal, WiFi connect | ~1 week             |
+| Phase 2 | Anthropic poller + Usage UI + reliable loop        | ~1 week             |
+| Phase 3 | Splash art + button interactions + battery + audio | 1–2 weeks           |
 
-**Target MVP completion:** End of Phase 2 (~2 weeks from kickoff).
+**Target MVP completion:** End of Phase 2 (~2 weeks from Phase 1 start).
 
 This is a single-contributor side project — timelines are estimates against evening/weekend pace, not full-time.
 
