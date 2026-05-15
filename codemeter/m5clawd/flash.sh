@@ -14,10 +14,15 @@
 #
 # SPIFFS note: this script flashes firmware only. Uploading the data/ folder as
 # a SPIFFS image is a Phase 3 concern (splash PNGs) and is not wired up yet.
+#
+# Build profile: this script builds with the `m5clawd` profile defined in
+# sketch.yaml. The profile isolates library resolution from the dev Mac's
+# global sketchbook, which carries a generic `SD` library that otherwise
+# shadows the ESP32 core's SD and breaks the build. See sketch.yaml.
 
 set -euo pipefail
 
-FQBN="esp32:esp32:m5stack-core-esp32"
+PROFILE="m5clawd"
 SKETCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Resolve the upload port ------------------------------------------------
@@ -42,11 +47,11 @@ fi
 
 # --- Compile ----------------------------------------------------------------
 echo "==> Compiling"
-arduino-cli compile --fqbn "$FQBN" "$SKETCH_DIR"
+arduino-cli compile --profile "$PROFILE" "$SKETCH_DIR"
 
 # --- Upload -----------------------------------------------------------------
 echo "==> Uploading to $PORT"
-arduino-cli upload --fqbn "$FQBN" --port "$PORT" "$SKETCH_DIR"
+arduino-cli upload --profile "$PROFILE" --port "$PORT" "$SKETCH_DIR"
 
 echo
 echo "Done. Watch serial output with:"
