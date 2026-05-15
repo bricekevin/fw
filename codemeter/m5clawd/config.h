@@ -6,6 +6,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <Arduino.h>
 
 // ---------------------------------------------------------------------------
 // Firmware identity
@@ -94,3 +95,33 @@ struct UsageData {
     RATE_LIMITED,
   } status;
 };
+
+// ---------------------------------------------------------------------------
+// Cross-tab function prototypes
+//
+// The sketch is split into .ino tabs that Arduino concatenates into one
+// translation unit. Declaring the public functions here lets any tab call
+// into another regardless of concatenation order.
+// ---------------------------------------------------------------------------
+
+// wifi_portal.ino
+String ap_ssid();
+String getParam(String name);
+void   wifi_portal_begin();
+
+// secrets_store.ino
+bool        secrets_is_configured();
+String      secrets_get_api_key();
+void        secrets_reset();
+void        saveParamCallback();
+const char *secret_redactor(const String &k);
+
+// ui.ino
+void ui_show_splash();
+void ui_show_connecting();
+void ui_show_status();
+void ui_show_provisioning();
+void ui_show_wifi_error();
+void ui_show_reset_confirm();
+void ui_portal_hint(const char *msg);
+void ui_portal_client_connected();
