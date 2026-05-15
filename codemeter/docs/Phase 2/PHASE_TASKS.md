@@ -1,7 +1,10 @@
 # Phase 2 - Anthropic Poller + Usage UI Tasks
 
-**Status:** 9/16 complete — Epics 1 + 2 done (pure-logic foundation, HTTPS poller)
+**Status:** 9/20 complete — Epics 1 + 2 done (pure-logic foundation, HTTPS poller)
 **Updated:** 2026-05-15
+
+> Task count: 20 numbered tasks across 5 epics (5/4/4/2/5). The PRD and
+> DEPENDENCIES docs say "16" — a planning miscount; this checklist is authoritative.
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for code snippets and commands.
 > See HANDOFF_NOTES.md for Phase 1 context (note: all builds use `--profile m5clawd`).
