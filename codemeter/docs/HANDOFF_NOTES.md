@@ -7,6 +7,65 @@
 
 ---
 
+## Session 5 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1 h
+**Focus:** `/3_dev` Phase 2 Epic 3 — the Usage screen, status overlays, and the 3-screen button cycle.
+
+### What happened
+
+Implemented Epic 3 (4 tasks) in worktree `../theClaw-phase-2-20260515`. The device now renders the polled usage on a proper Usage screen, with a status-badge bar and flicker-free partial redraw. Phase 2 is 13/20 tasks done — Epics 1-3 complete.
+
+### Completed (Phase 2 Epic 3 — 13/20 tasks total)
+
+- [x] **3.1** `ui_show_usage()` — status bar + SESSION (5h) / WEEKLY (7d) cards.
+- [x] **3.2** `ui_update_usage()` — per-field cached partial redraw.
+- [x] **3.3** status badges + stale/no-data handling.
+- [x] **3.4** `m5clawd.ino` — 3-screen cycle on button A, button B force-poll.
+
+### Decisions made
+
+- **Badge wording.** The design system's "State Indicators" table uses terse glyph-ish labels (`auth!`, `api-`, `wifi-`). The Usage badge instead uses readable phrases (`auth failed`, `api error`, `wifi down`, `rate limited`, `poll ok`, `connecting`). Same intent, clearer on a 320 px panel — a minor, deliberate deviation from `3_DESIGN_SYSTEM.md`.
+- **Big numbers in font 7.** Per the design system, the percentage uses the built-in 7-segment font 7; the `%` sign is drawn separately in `FSSB18` (font 7 is digits-only). Compiles fine — actual rendering unverified (no hardware this session).
+- **`UNKNOWN` shows `--`, not `0%`.** Before the first successful poll the cards show `--` placeholders so a pre-poll device never looks like genuine 0% usage. Stale (last-known-good) data stays on screen but dimmed; the badge conveys the error.
+- **`g_lastPollMs`** (a `millis()` stamp) drives the "updated Xs ago" text — chosen over the epoch-based `UsageData::last_poll_unix` so the relative time works even before NTP syncs.
+
+### Files Changed
+
+```text
+m5clawd/ui.ino       — new: ui_show_usage / ui_update_usage + Usage helpers
+m5clawd/m5clawd.ino  — Screen enum -> Splash/Usage/Status; button A cycle,
+                       button B force-poll; g_lastPollMs; poll-loop screen
+                       refresh + sustained-failure auto-jump to Status
+m5clawd/config.h     — #include "format_helpers.h"; ui_show_usage/ui_update_usage
+                       prototypes
+docs/Phase 2/PHASE_TASKS.md — Epic 3 checked off
+```
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` — clean, no warnings. Sketch **86%** of flash.
+- `m5clawd/test/run.sh` — 100 checks, all pass (pure modules untouched this session).
+- **Not verified:** the rendered screen. No hardware in this session — the Usage layout, font-7 rendering, and badge colors are unconfirmed. The `USG_*` y-offset constants in `ui.ino` are hand-tuned guesses; expect to nudge them against a photo.
+
+### Known Issues
+
+| Issue | Severity | Impact | Notes |
+| ----- | -------- | ------ | ----- |
+| Usage screen never rendered on hardware | MED | Layout/fonts/colors unconfirmed | Flash + photograph. Tune `USG_CARD*_TOP` / `USG_VAL_*` / `USG_RESET_DY` in `ui.ino` if cards look cramped. Confirm built-in font 7 is loaded in this M5Stack build. |
+| `2_ARCHITECTURE.md` + `PHASE_PRD.md` say `-week-` headers | MED | Docs vs code | Carried from Session 4 — fix during `/6_doc`. |
+| On-device TLS/poll still unverified | MED | Whole poll path compile-clean but never run | Carried from Session 4 — first real test is smoke Task 5.2. |
+| Sketch at 86% of flash | LOW | Headroom ~171 KB | Epic 4 adds little code; fine. Watch before Phase 3 art. |
+
+### Next Session Should
+
+1. Continue `/3_dev` Phase 2 with **Epic 4** — last-known-good `UsageData` persistence to NVS (so a cold boot shows the last numbers) + heap/reconnect hardening.
+2. Then **Epic 5** — host tests are green; the big remaining item is the on-hardware smoke run (Task 5.2), which is the first real TLS/poll/render test. Also the optional CI workflow (Task 5.4) and doc fixes (Task 5.5).
+3. When hardware is available: flash, watch serial for `[poll] code=200` + the first-poll header dump, and photograph the Usage screen.
+
+---
+
 ## Session 4 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
