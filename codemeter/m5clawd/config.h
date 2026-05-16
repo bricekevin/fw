@@ -203,9 +203,10 @@ enum RefreshResult {
 RefreshResult oauth_refresh();
 // Outcome of the onboarding code exchange (Epic 3.2).
 enum ExchangeResult {
-  EXCHANGE_OK,         // access + refresh token obtained and persisted
-  EXCHANGE_BAD_CODE,   // endpoint rejected the code/verifier — user re-pastes
-  EXCHANGE_NET_ERROR,  // transient TLS/HTTP failure — user retries
+  EXCHANGE_OK,            // access + refresh token obtained and persisted
+  EXCHANGE_BAD_CODE,      // endpoint rejected the code/verifier — user re-pastes
+  EXCHANGE_RATE_LIMITED,  // endpoint returned 429 — transient; wait, then retry
+  EXCHANGE_NET_ERROR,     // transient TLS/HTTP failure — user retries
 };
 ExchangeResult oauth_exchange_code(const String &pasted);
 // Onboarding (Epic 3). oauth_pkce_begin() mints a fresh code_verifier /

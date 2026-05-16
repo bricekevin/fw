@@ -118,6 +118,9 @@ void oauthCodeSaveCallback() {
     case EXCHANGE_BAD_CODE:
       ui_portal_hint("Code rejected - check it and paste again");
       break;
+    case EXCHANGE_RATE_LIMITED:
+      ui_portal_hint("Rate limited - wait, then log in again");
+      break;
     case EXCHANGE_NET_ERROR:
     default:
       ui_portal_hint("Network error - try the code again");

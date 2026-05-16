@@ -180,6 +180,11 @@ ExchangeResult oauth_exchange_code(const String &pasted) {
         result = EXCHANGE_OK;
       }
     }
+  } else if (httpCode == 429) {
+    // Rate limited — the code was not consumed. Transient: the user should
+    // wait, then retry (re-login for a fresh code, as the old one may expire).
+    Serial.println("[oauth] exchange rate-limited (HTTP 429)");
+    result = EXCHANGE_RATE_LIMITED;
   } else if (httpCode >= 400 && httpCode < 500) {
     // The code is wrong, expired, already used, or the verifier mismatched —
     // none fixable by retrying the same code. Ask the user to re-paste.
@@ -290,6 +295,11 @@ RefreshResult oauth_refresh() {
   RefreshResult result;
   if (code == 200) {
     result = oauth_store_response(http.getString(), refresh_token);
+  } else if (code == 429) {
+    // Rate limited — NOT a dead credential. Transient: back off and retry,
+    // never force a re-onboard on a 429.
+    Serial.println("[oauth] refresh rate-limited (HTTP 429)");
+    result = REFRESH_NET_ERROR;
   } else if (code >= 400 && code < 500) {
     // A 4xx will not fix itself on retry — the refresh token is revoked,
     // expired, or otherwise rejected. Fail closed to the re-onboard state.
