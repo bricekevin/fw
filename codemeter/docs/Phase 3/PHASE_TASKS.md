@@ -1,6 +1,6 @@
 # Phase 3 - OAuth Onboarding + Token Refresh Tasks
 
-**Status:** 8/18 — Epics 1-2 complete; Epic 3 (onboarding) next
+**Status:** 11/18 — Epics 1-2 done; Epic 3 Tasks 3.1-3.3 done, 3.4 next
 **Updated:** 2026-05-15
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for spike commands and
@@ -73,14 +73,14 @@
   - [x] After WiFi is entered, the portal shows the authorize URL (+ a QR) for the user to open on their phone/laptop
   - [x] Generate + hold the PKCE verifier/challenge for the session
 
-- [~] **3.2 Code exchange** (`oauth.ino`)
-  - [ ] Portal field for the one-time code the user pastes back — _wired in 3.3 (the portal restructure); the capability below is method-independent, like the 2.2/2.3 split_
+- [x] **3.2 Code exchange** (`oauth.ino`)
+  - [x] Portal field for the one-time code the user pastes back — `oauthCodeField` on the Stage 2 web portal
   - [x] Device exchanges code + PKCE verifier for access + refresh tokens at the token endpoint; persists them — `oauth_exchange_code()` (handles `code` or `code#state`, state-checks, persists via `secrets_save_tokens()`)
-  - [~] Reject a bad code with a clear on-screen hint — `oauth_exchange_code()` returns `EXCHANGE_BAD_CODE`; the `ui_portal_hint()` wiring lands with the portal field in 3.3
+  - [x] Reject a bad code with a clear on-screen hint — `oauthCodeSaveCallback()` maps `EXCHANGE_BAD_CODE` / `EXCHANGE_NET_ERROR` to `ui_portal_hint()` banners
 
-- [ ] **3.3 Onboarding sequencing** (`m5clawd.ino` / `wifi_portal.ino`)
-  - [ ] Stage the flow: WiFi credentials first, then the OAuth step (the OAuth exchange needs internet)
-  - [ ] Fold in the carry-over fix: harden `station_connect()` so the post-onboarding boot does not need a manual power-cycle (Phase 1/2 known issue)
+- [x] **3.3 Onboarding sequencing** (`m5clawd.ino` / `wifi_portal.ino`)
+  - [x] Stage the flow: WiFi credentials first, then the OAuth step (the OAuth exchange needs internet) — two staged WiFiManager sessions with a reboot between; Stage 2 web portal on the home LAN (ADR 009, supersedes ADR 007's "soft-AP stays up")
+  - [x] Fold in the carry-over fix: harden `station_connect()` — settle delay before `WiFi.begin()` + up to 3 connect attempts
 
 - [ ] **3.4 "Change credential" path**
   - [ ] A way to re-run just the OAuth step (re-onboard the token) without wiping WiFi creds — e.g. a dedicated button gesture or portal menu entry

@@ -90,25 +90,39 @@ const char *secret_redactor(const String &k) {
   return "***";
 }
 
-// WiFiManager save callback: validate the submitted key, persist it on success.
-// NOTE: this is the Phase-2 API-key portal field; Epic 3 replaces it with the
-// OAuth onboarding flow (ADR 007).
-void saveParamCallback() {
-  String key = getParam(PARAM_ID_ANTHROPIC_KEY);
-  key.trim();
-
-  if (!key.startsWith("sk-ant-") || key.length() < 24) {
-    Serial.println("[portal] API key rejected: must start with sk-ant-");
-    ui_portal_hint("Invalid key - must start with sk-ant-");
-    return;                                        // configured flag stays off
-  }
-
+// WiFiManager setSaveConfigCallback (Stage 1) — fired once the home WiFi
+// credentials are saved and the connection succeeds. The credentials live in
+// the ESP32's own WiFi NVS; this only records that first-boot WiFi setup is
+// done, so the next boot skips Stage 1 and goes to station mode.
+void onWifiSaved() {
   preferences.begin(NVS_NAMESPACE, false);
-  preferences.putString(NVS_KEY_API_KEY, key);
   preferences.putBool(NVS_KEY_CONFIGURED, true);
   preferences.end();
+  Serial.println("[portal] WiFi credentials saved");
+}
 
-  Serial.printf("[portal] API key saved (%s)\n", secret_redactor(key));
+// WiFiManager setSaveParamsCallback (Stage 2) — fired when the user submits the
+// OAuth portal page. Exchange the pasted one-time code for tokens: on success
+// flag onboarding complete (the Stage 2 loop then reboots); on failure leave a
+// clear on-screen hint and keep the portal open for another attempt.
+void oauthCodeSaveCallback() {
+  String code = getParam(PARAM_ID_OAUTH_CODE);
+  code.trim();
+  if (code.length() == 0) return;                  // page saved, field empty
+
+  switch (oauth_exchange_code(code)) {
+    case EXCHANGE_OK:
+      Serial.println("[portal] OAuth code accepted");
+      g_oauth_onboarded = true;
+      break;
+    case EXCHANGE_BAD_CODE:
+      ui_portal_hint("Code rejected - check it and paste again");
+      break;
+    case EXCHANGE_NET_ERROR:
+    default:
+      ui_portal_hint("Network error - try the code again");
+      break;
+  }
 }
 
 // Wipe all stored configuration — both our namespace and WiFiManager's creds.

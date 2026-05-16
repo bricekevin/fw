@@ -9,12 +9,14 @@
 //
 // The sketch is split into .ino tabs (Arduino concatenates them):
 //   m5clawd.ino       — globals, setup(), loop(), button handling, poll loop
-//   wifi_portal.ino   — WiFiManager captive-portal glue
-//   secrets_store.ino — NVS persistence of the Anthropic API key
+//   wifi_portal.ino   — WiFiManager onboarding (Stage 1 WiFi + Stage 2 OAuth)
+//   secrets_store.ino — NVS persistence of the OAuth credential record
+//   oauth.ino         — OAuth PKCE onboarding + access-token refresh
 //   poller.ino        — Anthropic HTTPS poll + NTP time
 //   ui.ino            — M5.Lcd screen drawing
-// Pure-logic modules (parse_headers, format_helpers, state_machine) are plain
-// .cpp/.h pairs. Shared constants and cross-tab prototypes live in config.h.
+// Pure-logic modules (parse_headers, format_helpers, state_machine,
+// refresh_policy, oauth_pkce) are plain .cpp/.h pairs. Shared constants and
+// cross-tab prototypes live in config.h.
 
 #include <M5Stack.h>
 #include <WiFi.h>
@@ -30,7 +32,10 @@
 // --- Globals (defined here, visible to every tab) --------------------------
 Preferences          preferences;
 WiFiManager          wifiManager;
-WiFiManagerParameter apiKeyField;          // the single custom portal field
+WiFiManagerParameter oauthLoginField;      // Stage 2 portal — "Log in" HTML block
+WiFiManagerParameter oauthCodeField;       // Stage 2 portal — paste-back code field
+String               oauthLoginHtml;      // backing buffer for oauthLoginField
+bool                 g_oauth_onboarded = false;  // set on a good Stage 2 exchange
 
 enum Screen { SCREEN_SPLASH, SCREEN_USAGE, SCREEN_STATUS, SCREEN_COUNT };
 static Screen currentScreen     = SCREEN_SPLASH;
@@ -56,17 +61,30 @@ static uint32_t nextRefreshAtMs  = 0;         // millis() gate after a transient
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 30000;
 
 // --- WiFi station mode ------------------------------------------------------
-// Connect using the credentials WiFiManager persisted on first-boot setup.
+// Connect using the credentials saved during onboarding. Hardened (Phase 3
+// Task 3.3, folding in the Phase 1/2 carry-over bug where the first
+// post-onboarding boot needed a manual power-cycle): a short settle delay
+// before WiFi.begin() lets the radio recover from the AP/portal teardown, and
+// the connect is retried up to three times before giving up.
 static bool station_connect() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin();
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED &&
-         millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
-    M5.update();
-    delay(200);
+  for (int attempt = 1; attempt <= 3; ++attempt) {
+    if (attempt > 1) {
+      WiFi.disconnect();
+      delay(300);
+    }
+    delay(200);                            // settle the radio after AP teardown
+    WiFi.begin();                          // use the stored credentials
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED &&
+           millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
+      M5.update();
+      delay(200);
+    }
+    if (WiFi.status() == WL_CONNECTED) return true;
+    Serial.printf("[wifi] connect attempt %d/3 timed out\n", attempt);
   }
-  return WiFi.status() == WL_CONNECTED;
+  return false;
 }
 
 void setup() {
@@ -78,15 +96,47 @@ void setup() {
 
   SPIFFS.begin(true);
 
-  // Boot-mode selection: no stored config -> provisioning, else station.
+  // Stage 1 — no home WiFi yet: run the soft-AP captive portal, then reboot
+  // into station mode (ADR 009).
   if (!secrets_is_configured()) {
-    Serial.println("[boot] not configured -> provisioning mode");
+    Serial.println("[boot] no WiFi config -> onboarding stage 1 (WiFi)");
     ui_show_provisioning();
-    wifi_portal_begin();                   // blocks; restarts on success
+    wifi_portal_wifi_stage();              // blocks; reboots on WiFi save
   }
 
-  Serial.println("[boot] configured -> station mode");
-  g_apiKey = secrets_get_access_token();
+  Serial.println("[boot] WiFi configured -> station mode");
+
+  ui_show_splash();
+  delay(600);
+  ui_show_connecting();
+
+  WiFi.setAutoReconnect(true);             // keep the link up across blips
+  bool connected = station_connect();
+
+  // Stage 2 — on the network but holding no refreshable OAuth credential
+  // (fresh device, or a legacy/expired token): run the OAuth web portal on
+  // the home LAN, then reboot (ADR 009). It needs internet, so it runs only
+  // once the station link is up.
+  g_credState = secrets_cred_state();
+  g_expiresAt = secrets_get_expires_at();
+  if (g_credState != CRED_OAUTH) {
+    if (connected) {
+      Serial.printf("[boot] no OAuth credential (state=%d) "
+                    "-> onboarding stage 2 (login)\n", g_credState);
+      wifi_portal_oauth_stage();           // blocks; reboots on a good exchange
+    } else {
+      // Cannot onboard OAuth with no internet. Surface the re-onboard state;
+      // a power-cycle once WiFi is healthy re-enters Stage 2.
+      Serial.println("[boot] no OAuth credential and WiFi down "
+                     "-> re-onboard required");
+      g_reauthRequired = true;
+    }
+  } else {
+    Serial.printf("[boot] OAuth credential ok, access-token expiry=%u\n",
+                  g_expiresAt);
+  }
+
+  g_apiKey = secrets_get_access_token();   // OAuth access token, cached for the poller
 
   // Restore last-known-good usage so the screen shows real numbers (flagged
   // stale) instead of "--" before the first poll of this boot lands.
@@ -98,33 +148,9 @@ void setup() {
     Serial.printf("[boot] restored usage: session=%u%% weekly=%u%%\n",
                   g_usage.session_pct, g_usage.weekly_pct);
   }
-
-  // Credential state. CRED_OAUTH (access + refresh token) can self-refresh;
-  // anything else cannot — the device boots straight into the re-onboard
-  // state and the poll loop stays idle until the user re-onboards (ADR 008).
-  g_credState = secrets_cred_state();
-  g_expiresAt = secrets_get_expires_at();
-  if (g_credState != CRED_OAUTH) {
-    Serial.printf("[boot] credential not refreshable (state=%d) "
-                  "-> re-onboard required\n", g_credState);
-    g_reauthRequired = true;
-    g_usage.status   = UsageData::REAUTH_REQUIRED;
-    g_usage.stale    = true;
-  } else {
-    Serial.printf("[boot] OAuth credential ok, access-token expiry=%u\n",
-                  g_expiresAt);
-  }
-
-  ui_show_splash();
-  delay(600);
-  ui_show_connecting();
-
-  WiFi.setAutoReconnect(true);             // keep the link up across blips
-  bool connected = station_connect();
-  if (!connected) {
-    Serial.println("[wifi] timed out, retrying once");
-    WiFi.disconnect();
-    connected = station_connect();
+  if (g_reauthRequired) {
+    g_usage.status = UsageData::REAUTH_REQUIRED;
+    g_usage.stale  = true;
   }
 
   poller_begin();                          // start NTP (syncs once WiFi is up)

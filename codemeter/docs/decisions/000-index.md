@@ -33,8 +33,9 @@ Each ADR follows this structure:
 | 004 | Port to sibling repo, do not fork           | 2026-05-14 (rev. 2026-05-15) | Accepted |
 | 005 | Secrets storage in NVS, no host keychain    | 2026-05-14 (rev. 2026-05-15) | Accepted (revised by 008) |
 | 006 | Start from a copy-and-strip of the crypto ticker | 2026-05-15 | Accepted |
-| 007 | OAuth onboarding via authorize-URL + paste-back code | 2026-05-15 | Accepted |
+| 007 | OAuth onboarding via authorize-URL + paste-back code | 2026-05-15 | Accepted (steps 2-3 refined by 009) |
 | 008 | Refresh-token storage — plaintext NVS, encryption deferred | 2026-05-15 | Accepted |
+| 009 | Stage-2 OAuth onboarding portal on the home LAN | 2026-05-15 | Accepted |
 
 ---
 

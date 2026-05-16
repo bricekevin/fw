@@ -46,9 +46,6 @@
 // e.g. "M5Clawd-A1B2C3".
 #define WIFI_AP_SSID_PREFIX "M5Clawd"
 
-// WiFiManagerParameter id for the Anthropic API key field.
-#define PARAM_ID_ANTHROPIC_KEY "anthropic_key"
-
 // ---------------------------------------------------------------------------
 // Persistent storage (Preferences / NVS)
 // ---------------------------------------------------------------------------
@@ -113,9 +110,9 @@ enum CredState {
 // Minimal scopes — the poller only needs inference; profile aids the consent UI.
 #define OAUTH_SCOPE         "user:inference user:profile"
 
-// WiFiManagerParameter ids for the Epic 3 onboarding portal step.
-#define PARAM_ID_OAUTH_LOGIN "oauth_login"  // read-only "Log in with Claude" block
-#define PARAM_ID_OAUTH_CODE  "oauth_code"   // paste-back one-time code field
+// WiFiManagerParameter id for the Epic 3 paste-back one-time code field. The
+// "Log in with Claude" block is a custom-HTML parameter and needs no id.
+#define PARAM_ID_OAUTH_CODE "oauth_code"
 
 // Refresh the access token this many seconds before it expires. Generous (30
 // min) so a flaky network gets many poll-spaced retries before the token
@@ -174,7 +171,8 @@ enum CredState {
 // wifi_portal.ino
 String ap_ssid();
 String getParam(String name);
-void   wifi_portal_begin();
+void   wifi_portal_wifi_stage();    // Stage 1 — soft-AP captive portal (WiFi creds)
+void   wifi_portal_oauth_stage();   // Stage 2 — OAuth web portal on the home LAN
 
 // secrets_store.ino
 bool        secrets_is_configured();
@@ -185,7 +183,8 @@ uint32_t    secrets_get_expires_at();
 void        secrets_save_tokens(const String &access, const String &refresh,
                                 uint32_t expires_at);
 void        secrets_reset();
-void        saveParamCallback();
+void        onWifiSaved();           // WiFiManager callback — home WiFi creds saved
+void        oauthCodeSaveCallback(); // Stage 2 portal — paste-back code submitted
 const char *secret_redactor(const String &k);
 
 // oauth.ino
@@ -228,7 +227,7 @@ void ui_show_status();
 void ui_show_usage(const UsageData &d);
 void ui_update_usage(const UsageData &d);
 void ui_show_provisioning();
-void ui_show_oauth_login(const String &authorize_url);
+void ui_show_oauth_login(const String &authorize_url, const String &portal_url);
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_portal_hint(const char *msg);

@@ -1,10 +1,17 @@
-// wifi_portal.ino — WiFiManager captive-portal glue.
+// wifi_portal.ino — WiFiManager onboarding, two staged portals (ADR 007/009).
 //
-// The structure here is inherited verbatim from the Crypto_Coin_TickerUS_Stock
-// reference (ADR 006): getParam(), WiFiEvent(), onConfigModeCallback(), and the
-// setMenu / setClass("invert") / portal-start sequence. The one difference is
-// the parameter set — M5Clawd registers exactly one custom field (the Anthropic
-// API key) where the crypto ticker registered ~52.
+// Onboarding is two independent WiFiManager sessions with a reboot between:
+//
+//   Stage 1  wifi_portal_wifi_stage()  — soft-AP captive portal. Collects the
+//            home-WiFi credentials, then reboots into station mode.
+//   Stage 2  wifi_portal_oauth_stage() — web portal on the home-LAN IP (no
+//            soft-AP). Shows the "Log in with Claude" authorize URL and a
+//            paste-back field for the one-time code; runs the code exchange.
+//
+// The soft-AP / captive-portal mechanics (ap_ssid, getParam, WiFiEvent,
+// onConfigModeCallback, setClass("invert"), setMenu) are inherited from the
+// Crypto_Coin_TickerUS_Stock reference (ADR 006). See ADR 009 for why the two
+// stages live on two different network surfaces.
 
 // AP SSID: "M5Clawd-" + last 6 hex digits of the MAC, e.g. "M5Clawd-A1B2C3".
 String ap_ssid() {
@@ -24,36 +31,33 @@ String getParam(String name) {
   return value;
 }
 
-// Swap the LCD art as phones join / leave the soft-AP.
+// Stage 1 only — swap the LCD art as phones join / leave the soft-AP. A joined
+// phone advances onboarding step 1 (join the AP) to step 2 (open the portal).
 void WiFiEvent(WiFiEvent_t event, system_event_info_t info) {
   switch (event) {
     case SYSTEM_EVENT_AP_STACONNECTED:
-      ui_portal_client_connected();
+      ui_portal_client_connected();   // step 2 — "open the portal" QR
       break;
     case SYSTEM_EVENT_AP_STADISCONNECTED:
-      ui_show_provisioning();
+      ui_show_provisioning();         // step 1 — "join the AP" QR
       break;
     default:
       break;
   }
 }
 
-// Fired by WiFiManager when the configuration portal opens.
+// Fired by WiFiManager when the Stage 1 configuration portal opens.
 void onConfigModeCallback(WiFiManager *myWiFiManager) {
   ui_show_provisioning();
 }
 
-// Run the captive portal until a well-formed API key is saved, then reboot
-// cleanly into station mode. startConfigPortal() is used instead of
-// autoConnect() so the portal opens even when WiFi credentials already exist
-// (e.g. re-onboarding after a rejected key).
-void wifi_portal_begin() {
-  new (&apiKeyField) WiFiManagerParameter(
-      PARAM_ID_ANTHROPIC_KEY, "Claude Code OAuth token", "", 200,
-      "placeholder=\"sk-ant-oat01-...\" type=\"password\"");
-  wifiManager.addParameter(&apiKeyField);
-
-  wifiManager.setSaveParamsCallback(saveParamCallback);
+// --- Stage 1 — WiFi credentials over the soft-AP captive portal ------------
+// startConfigPortal() blocks until the portal exits; onWifiSaved() sets the
+// configured flag once WiFi credentials are saved and the connection succeeds,
+// so the loop ends and the device reboots into station mode. No custom field
+// here — the ADR 003 API-key field is gone (superseded by OAuth, ADR 007).
+void wifi_portal_wifi_stage() {
+  wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setAPCallback(onConfigModeCallback);
   wifiManager.setTitle("M5CLAWD SETUP");
   wifiManager.setClass("invert");                  // dark theme
@@ -64,13 +68,62 @@ void wifi_portal_begin() {
 
   WiFi.onEvent(WiFiEvent);
 
-  // saveParamCallback() sets the configured flag only for a valid key, so a
-  // rejected key leaves the loop running and reopens the portal.
   while (!secrets_is_configured()) {
     wifiManager.startConfigPortal(ap_ssid().c_str());
   }
 
-  Serial.println("[portal] provisioned -> restarting into station mode");
+  Serial.println("[portal] WiFi saved -> restarting into station mode");
+  delay(500);
+  ESP.restart();
+}
+
+// --- Stage 2 — OAuth onboarding, web portal on the home LAN ----------------
+// Runs after the device is on the home network but still has no OAuth
+// credential. Serves the WiFiManager web portal (no soft-AP, no captive DNS)
+// on the station IP — the user's phone, still on home WiFi, reaches both
+// claude.com and the device. The LCD shows the authorize-URL QR + the LAN
+// portal address (ADR 009). startWebPortal() is non-blocking; process() is
+// pumped until oauthCodeSaveCallback() reports a successful exchange.
+void wifi_portal_oauth_stage() {
+  oauth_pkce_begin();
+  String authUrl = oauth_authorize_url();
+
+  // The portal's "Log in with Claude" block — a read-only custom-HTML field.
+  // oauthLoginHtml is a global so its buffer outlives the WiFiManagerParameter.
+  oauthLoginHtml =
+      String("<br/><a href='") + authUrl +
+      "' target='_blank' style='display:block;padding:14px;margin-bottom:8px;"
+      "background:#DA7756;color:#fff;text-align:center;border-radius:6px;"
+      "text-decoration:none;font-weight:bold'>Log in with Claude</a>"
+      "<p>Open the link, approve, then paste the one-time code below.</p>";
+  new (&oauthLoginField) WiFiManagerParameter(oauthLoginHtml.c_str());
+  new (&oauthCodeField) WiFiManagerParameter(
+      PARAM_ID_OAUTH_CODE, "One-time code", "", 256,
+      "placeholder=\"paste the code from Claude\"");
+  wifiManager.addParameter(&oauthLoginField);
+  wifiManager.addParameter(&oauthCodeField);
+
+  wifiManager.setSaveParamsCallback(oauthCodeSaveCallback);
+  wifiManager.setTitle("M5CLAWD - LOG IN");
+  wifiManager.setClass("invert");
+  wifiManager.setShowInfoUpdate(false);
+  wifiManager.setShowInfoErase(false);
+  std::vector<const char *> wm_menu = {"param", "exit"};
+  wifiManager.setMenu(wm_menu);
+
+  String portalUrl = String("http://") + WiFi.localIP().toString();
+  ui_show_oauth_login(authUrl, portalUrl);
+
+  // Non-blocking web portal: pump process() so the LCD/buttons stay live.
+  wifiManager.startWebPortal();
+  while (!g_oauth_onboarded) {
+    wifiManager.process();
+    M5.update();
+    delay(20);
+  }
+  wifiManager.stopWebPortal();
+
+  Serial.println("[portal] OAuth onboarded -> restarting");
   delay(500);
   ESP.restart();
 }
