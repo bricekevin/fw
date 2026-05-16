@@ -1,9 +1,90 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-15 (Session 15)
+**Last Updated:** 2026-05-16 (Session 16)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 16 — 2026-05-16
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~30 min
+**Focus:** `/3_dev` Phase 3 — **Epic 4 Task 4.3**, re-onboard robustness. A
+verification task: code audit of the three recovery paths. No firmware change.
+
+### Completed — Task 4.3 (code-audit half)
+
+The three failure-recovery paths were traced end-to-end through `oauth.ino`,
+`m5clawd.ino` (`do_poll`/`do_refresh`), `secrets_store.ino`, and
+`refresh_policy.cpp`. All three recover cleanly **by design**:
+
+- **Expired access token.** Two layers. *Proactive:* `do_poll()` runs
+  `should_refresh(g_expiresAt, poller_time_now(), REFRESH_MARGIN_S)` and
+  refreshes ahead of expiry. *Reactive:* if the token expires anyway, the poll
+  returns `POLL_AUTH_FAIL` (401) and `do_poll()` refreshes once, then retries
+  the poll. The unknown-expiry boot case (`g_expiresAt == 0` — saved before NTP
+  synced) is handled: `should_refresh(0, now, margin)` returns true once the
+  clock is valid (covered by `refresh_policy_test::test_should_refresh_unknown_expiry`).
+  -> recovers silently.
+
+- **Revoked refresh token.** `oauth_refresh()` gets a 4xx ->
+  `REFRESH_INVALID_GRANT` (fail-closed — a 4xx never self-heals on retry).
+  `do_refresh()` maps that (and `REFRESH_NO_TOKEN`) to `g_reauthRequired` +
+  `REAUTH_REQUIRED`; `do_poll()`'s tail draws `ui_show_reauth_required()` and
+  the `loop()` poll gate (`!g_reauthRequired`) stops further polling so the
+  endpoint is not hammered. Recovery = the Task 3.4 button-B gesture ->
+  `secrets_clear_oauth()` -> reboot into Stage 2. No silent dead device.
+
+- **Mid-refresh power loss.** `secrets_save_tokens()` writes NVS keys in the
+  order **RT -> EXP -> AT**, each `put*` individually atomic (NVS is per-key
+  transactional — no key is ever left half-written). Power-loss windows:
+  *before the RT write* — NVS unchanged; on reboot the device refreshes again,
+  and if server-side rotation already killed the old RT the refresh 4xx's to
+  the reauth screen (clean, one user action — not a wedge). *After RT, before
+  AT* — NVS holds the new valid RT with the old EXP/AT; on reboot
+  `should_refresh(oldEXP, …)` is true (oldEXP is at/past the margin that
+  triggered the original refresh) -> proactive refresh with the new RT ->
+  `REFRESH_OK` rewrites all three keys -> silent recovery. *After all three* —
+  fully updated. The RT-first ordering (called out in the `secrets_store.ino`
+  comment) is what makes every interruption point degrade safely.
+
+**Conclusion:** no code change needed — the design is sound. What remains is
+the on-hardware confirmation, which genuinely needs a flashed device.
+
+### Verification
+
+- No firmware changed -> not recompiled; host tests unchanged (the pure-logic
+  underpinning, `refresh_policy`, is already green with the unknown-expiry and
+  zero-margin edge cases covered).
+
+### Files Changed
+
+```text
+docs/Phase 3/PHASE_TASKS.md — 4.3 split into [x] code-audit + [ ] hardware
+docs/HANDOFF_NOTES.md       — this entry (the audit of record)
+```
+
+### Known Issues / Watch
+
+- **Task 4.3 is `[~]`, not done.** The code audit is complete; the hardware
+  confirmation (force an expired AT, revoke the RT mid-run, pull power during a
+  refresh) is still open and must be run on a flashed device — pair it with
+  Epic 5.2. Epic 4 is therefore *not* fully closed.
+- The one non-silent path is by design: power loss *before* the RT write, if
+  the server already rotated, lands on the reauth screen rather than
+  self-healing. That matches the PRD ("a clear on-screen re-onboard prompt, not
+  a silent dead device") — flag it, don't try to "fix" it.
+
+### Next Session Should
+
+1. **Epic 5** — this is now the whole remaining Phase 3 surface: 5.1 (host
+   tests green — already true), 5.2 (hardware verification, incl. the Task 4.3
+   hardware items and the Session 11-15 backlog), 5.3 (documentation —
+   the real README onboarding walkthrough, `1_/2_` doc updates, ADR index).
+2. Flashing the device is now the critical path — almost everything left is
+   on-hardware.
 
 ---
 

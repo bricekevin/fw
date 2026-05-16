@@ -96,8 +96,9 @@
 - [x] **4.2 Refresh-token storage — documentation** (scoped by ADR 008)
   - [x] ADR 008 deferred NVS encryption to Phase 4; this task is **docs only**: write the device-loss revocation guidance into the README and the "re-onboard required" UI copy (the mandatory compensating controls from ADR 008) — README "Security & Privacy Notes" rewritten for the OAuth credential record + revocation-as-recovery; `ui_show_reauth_required()` carries a "revoke its access in your Claude account settings" line; `ui_show_wifi_error()` copy corrected ("reconfigure", was a stale "re-onboard")
 
-- [ ] **4.3 Re-onboard robustness**
-  - [ ] Verify the device recovers cleanly from: expired access token, revoked refresh token, and a mid-refresh power loss
+- [~] **4.3 Re-onboard robustness**
+  - [x] Code audit — the three recovery paths trace clean (full analysis in HANDOFF Session 16): expired access token (proactive `should_refresh` + on-401 reactive refresh-and-retry), revoked refresh token (`REFRESH_INVALID_GRANT` -> `g_reauthRequired` -> reauth screen, polling gated off), mid-refresh power loss (`secrets_save_tokens()` writes the refresh token first, so every power-loss window leaves a silently-refreshable or cleanly-re-onboardable NVS state — never a wedge). No firmware change required
+  - [ ] Hardware confirmation (needs a flashed device — pair with Epic 5.2): force an expired access token, revoke the refresh token mid-run, and pull power during a refresh — confirm each recovers without a wedge
 
 ---
 
