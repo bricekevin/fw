@@ -1,8 +1,18 @@
 # Phase 2 - Anthropic Poller + Usage UI PRD
 
 **Duration:** ~1 week (evening/weekend pace)
-**Status:** PLANNING
+**Status:** Code-complete; auth model revised post-hardware-test
 **Owner:** Kevin Brice
+
+> **REVISION (2026-05-15, hardware testing).** This PRD was written assuming a
+> plain `x-api-key` Anthropic API key. On-device testing proved that wrong: an
+> `x-api-key` request gets `200` but no `anthropic-ratelimit-unified-*` headers
+> — those need Claude Code **OAuth (Bearer)** auth. The poller was switched to
+> OAuth and re-verified on hardware. Wherever this document says "API key" /
+> "`x-api-key`", read "Claude Code OAuth token" / "`Authorization: Bearer`".
+> The new consequence — OAuth tokens expire, so the device needs a refresh
+> flow and a real onboarding UX — is **out of scope here** and is being planned
+> as its own phase. See `docs/HANDOFF_NOTES.md` Session 7 and `PHASE_TASKS.md`.
 
 ---
 

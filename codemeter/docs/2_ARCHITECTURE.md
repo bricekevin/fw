@@ -177,9 +177,10 @@ power on
   -> poller loop (every poll_interval_s):
        1. WiFiClientSecure client; client.setCACert(root_pem);
        2. HTTPClient http; http.begin(client, "https://api.anthropic.com/v1/messages");
-       3. addHeader: x-api-key, anthropic-version, content-type
-       4. http.POST({"model":"claude-haiku-4-5","max_tokens":1,
-                     "messages":[{"role":"user","content":"."}]})
+       3. addHeader: Authorization (Bearer), anthropic-version,
+                     anthropic-beta, content-type; setUserAgent
+       4. http.POST({"model":"claude-haiku-4-5-20251001","max_tokens":1,
+                     "messages":[{"role":"user","content":"hi"}]})
        5. read response headers:
             anthropic-ratelimit-unified-5h-utilization
             anthropic-ratelimit-unified-7d-utilization
@@ -219,16 +220,20 @@ We are an HTTP client, not a server. The only outbound call:
 
 ```http
 POST https://api.anthropic.com/v1/messages HTTP/1.1
-x-api-key: sk-ant-...
+Authorization: Bearer sk-ant-oat01-...
 anthropic-version: 2023-06-01
+anthropic-beta: oauth-2025-04-20
 content-type: application/json
+User-Agent: claude-code/2.1.5
 
-{"model":"claude-haiku-4-5","max_tokens":1,"messages":[{"role":"user","content":"."}]}
+{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}
 ```
 
 We use the response **headers**, not the body. The body is parsed (ArduinoJson 6.x) only enough to detect errors (e.g. `{"error":{"type":"authentication_error",…}}`).
 
-**Why this exact request?** It's the cheapest way to get fresh rate-limit headers — Haiku is the cheapest model, 1-token output and single-character input minimize cost. This is the trick the Clawdmeter daemon uses; we do it on-device.
+**Auth model — revised in Phase 2 (hardware finding, 2026-05-15).** The original design used a plain `x-api-key` Anthropic API key. On-device testing showed an `x-api-key` request returns `200` but carries **none** of the `anthropic-ratelimit-unified-*` headers — those are a Claude Code / OAuth feature. The poller now authenticates as a Claude Code client: `Authorization: Bearer <OAuth token>` plus the `anthropic-beta: oauth-2025-04-20` flag (matching the Clawdmeter daemon). The stored credential is a Claude Code OAuth token (`sk-ant-oat01-...`), not an API key. OAuth access tokens expire (~daily); a proper onboarding + token-refresh flow is planned as its own phase — see `docs/HANDOFF_NOTES.md` Session 7.
+
+**Why this exact request?** Haiku is the cheapest model and a 1-token reply minimizes cost — we only want the rate-limit response headers. This is the trick the Clawdmeter daemon uses; we do it on-device.
 
 ---
 
@@ -261,11 +266,11 @@ We use the response **headers**, not the body. The body is parsed (ArduinoJson 6
 
 ## Security
 
-- **Authentication (outbound):** Anthropic API key in the `x-api-key` header.
-- **Encryption (in transit):** TLS 1.2/1.3 to `api.anthropic.com`, root cert pinned via `WiFiClientSecure::setCACert`.
-- **Encryption (at rest):** **None in MVP.** API key is plaintext in NVS. See [ADR 005](decisions/005-secrets-storage-nvs.md) for the threat model and hardening path.
+- **Authentication (outbound):** Claude Code OAuth token in the `Authorization: Bearer` header (revised from the original `x-api-key` design in Phase 2 — see "API Design" above).
+- **Encryption (in transit):** TLS 1.2/1.3 to `api.anthropic.com`, root cert pinned via `WiFiClientSecure::setCACert` (Google Trust Services GTS Root R4).
+- **Encryption (at rest):** **None in MVP.** The OAuth token is plaintext in NVS. An OAuth credential is *higher-stakes* than a scoped, low-limit API key — and a refresh token (if stored once the refresh flow lands) is more sensitive still — which raises the priority of the NVS-encryption hardening in [ADR 005](decisions/005-secrets-storage-nvs.md).
 - **Inbound services:** None in station mode. The captive portal (provisioning mode) is HTTP-only on a private 192.168.4.x AP, active only for the ~2-minute onboarding window.
-- **Logging:** The API key must **never** be printed to serial. Error reporting uses `sk-ant-***` redaction.
+- **Logging:** The credential must **never** be printed to serial. Error reporting uses `sk-ant-***` redaction.
 
 ### Threat model summary
 

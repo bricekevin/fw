@@ -22,7 +22,7 @@ Claude Code's rate-limit utilization (`session %`, `weekly %`) is only visible f
 
 Port the concept to the M5Stack Core Basic — a common, off-the-shelf ESP32 dev board — and re-architect the data path:
 
-- **Onboarding:** Captive-portal Wi-Fi setup (tzapu/WiFiManager). User enters home WiFi creds + Anthropic API key in a phone browser. No app install, no recompile.
+- **Onboarding:** Captive-portal Wi-Fi setup (tzapu/WiFiManager) in a phone browser. No app install, no recompile. *(Note — 2026-05: Phase 2 hardware testing found the usage figures require a Claude Code **OAuth token**, not a plain API key; the onboarding flow for that credential is being redesigned as its own phase. See `docs/HANDOFF_NOTES.md` Session 7.)*
 - **Operation:** Device polls `api.anthropic.com` directly every 60 seconds, reads usage headers, renders on a 320×240 IPS LCD.
 - **No host daemon. No BLE. No companion software of any kind.**
 

@@ -327,9 +327,10 @@ ls ~/GIT/Crypto_Coin_TickerUS_Stock/                 # scaffolding source — DO
 - **Both `Clawdmeter/` and `Crypto_Coin_TickerUS_Stock` are read-only.** Copy *from* the crypto ticker once (Phase 1 copy-strip); never write to either.
 - **Don't suggest BLE in MVP.** [ADR 002](docs/decisions/002-wifi-vs-ble-daemon.md) deferred it entirely.
 - **Don't suggest PlatformIO or M5Unified.** [ADR 001](docs/decisions/001-tech-stack-selection.md) was revised to the Arduino/`arduino-cli`/`M5Stack.h` stack to match the crypto ticker. If you think PlatformIO is better, write a new ADR — don't silently switch.
-- **Don't hardcode the API key in the sketch.** Ever. It goes through the captive portal into `Preferences` ([ADR 003](docs/decisions/003-onboarding-via-wifimanager.md), [ADR 005](docs/decisions/005-secrets-storage-nvs.md)).
+- **Don't hardcode the credential in the sketch.** Ever. It goes through the captive portal into `Preferences` ([ADR 003](docs/decisions/003-onboarding-via-wifimanager.md), [ADR 005](docs/decisions/005-secrets-storage-nvs.md)).
+- **Auth model — Phase 2 hardware finding (2026-05-15).** The credential is a **Claude Code OAuth token** (`sk-ant-oat01-...`), sent as `Authorization: Bearer` with `anthropic-beta: oauth-2025-04-20` — **not** an `x-api-key` API key (a plain API key gets `200` but no `anthropic-ratelimit-unified-*` headers). OAuth tokens expire (~daily), so onboarding + token refresh are being planned as a new phase; ADRs 003/005 still describe the pre-pivot API-key model and will be superseded by that phase's ADRs. See `docs/HANDOFF_NOTES.md` Session 7.
 - **ArduinoJson is v6, not v7.** Use `StaticJsonDocument` / `DynamicJsonDocument`, not v7's unified `JsonDocument`.
-- **You cannot flash a device or read its screen.** When you finish a UI change, ask the user to flash + photograph. Don't claim "tested" otherwise.
+- **The dev device is on USB — you can flash it and read its serial.** `cd m5clawd && ./flash.sh`; for serial use a pyserial script (reset via DTR/RTS + read), since `arduino-cli monitor` does not work in a non-TTY environment. What you *cannot* do: see the LCD — ask the user to photograph the screen for UI changes.
 - **When a change conflicts with an ADR, write a new ADR** rather than silently overriding it.
 
 ---

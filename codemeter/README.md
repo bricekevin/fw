@@ -18,6 +18,14 @@ Its **codebase** starts as a copy-and-strip of a working M5Stack Core project (`
 
 > Setup target: under 5 minutes from a freshly powered-on device to live usage data on screen.
 
+> **⚠️ Onboarding is being redesigned (2026-05).** Phase 2 hardware testing
+> found that the 5h/weekly usage figures require **Claude Code OAuth** auth, not
+> a plain Anthropic API key — so the credential is now a Claude Code OAuth token
+> (`sk-ant-oat01-...`), and the walkthrough below (which still says "API key")
+> is pre-pivot. OAuth tokens also expire, so a proper "Log in with Claude"
+> onboarding + token-refresh flow is being planned as its own phase. Until then,
+> see `docs/HANDOFF_NOTES.md` (Session 7) for the current state.
+
 ### Prerequisites
 
 - **M5Stack Core Basic** (Gray or any original ESP32 M5Stack). USB-C cable.
