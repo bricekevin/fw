@@ -10,6 +10,7 @@
 #include "usage_data.h"      // the shared UsageData struct (pure, host-testable)
 #include "state_machine.h"   // PollState / PollOutcome (pure, host-testable)
 #include "format_helpers.h"  // countdown / relative-time formatters (pure)
+#include "refresh_policy.h"  // OAuth refresh-timing decisions (pure, host-testable)
 
 // ---------------------------------------------------------------------------
 // Firmware identity

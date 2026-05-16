@@ -40,9 +40,18 @@ static bool   resetConfirmShown = false;
 // --- Poll-loop state (visible to ui.ino) -----------------------------------
 UsageData       g_usage      = {};   // latest usage; status UNKNOWN until first poll
 PollState       g_pollState  = {};   // poll-outcome history + backoff schedule
-String          g_apiKey;            // Anthropic API key, cached at boot
+String          g_apiKey;            // OAuth access token, cached at boot / refresh
 uint32_t        g_lastPollMs = 0;    // millis() of the last successful poll (0 = none)
 static uint32_t nextPollAtMs = 0;    // millis() deadline for the next poll
+
+// --- OAuth credential state (visible to ui.ino) ----------------------------
+CredState       g_credState     = CRED_NONE;  // what credential the device holds
+uint32_t        g_expiresAt     = 0;          // access-token expiry, epoch seconds
+bool            g_reauthRequired = false;     // true once the credential is dead
+                                              // (no/invalid refresh token) — polling
+                                              // stops; the UI prompts re-onboarding
+static uint8_t  g_refreshFails   = 0;         // consecutive transient refresh failures
+static uint32_t nextRefreshAtMs  = 0;         // millis() gate after a transient failure
 
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 30000;
 
@@ -88,6 +97,22 @@ void setup() {
     g_usage = restored;
     Serial.printf("[boot] restored usage: session=%u%% weekly=%u%%\n",
                   g_usage.session_pct, g_usage.weekly_pct);
+  }
+
+  // Credential state. CRED_OAUTH (access + refresh token) can self-refresh;
+  // anything else cannot — the device boots straight into the re-onboard
+  // state and the poll loop stays idle until the user re-onboards (ADR 008).
+  g_credState = secrets_cred_state();
+  g_expiresAt = secrets_get_expires_at();
+  if (g_credState != CRED_OAUTH) {
+    Serial.printf("[boot] credential not refreshable (state=%d) "
+                  "-> re-onboard required\n", g_credState);
+    g_reauthRequired = true;
+    g_usage.status   = UsageData::REAUTH_REQUIRED;
+    g_usage.stale    = true;
+  } else {
+    Serial.printf("[boot] OAuth credential ok, access-token expiry=%u\n",
+                  g_expiresAt);
   }
 
   ui_show_splash();
@@ -164,13 +189,80 @@ static void buttons_poll() {
   }
 }
 
+// --- Token refresh ----------------------------------------------------------
+// True when no transient-failure backoff is currently blocking a refresh.
+static bool refresh_gate_open() {
+  return (int32_t)(millis() - nextRefreshAtMs) >= 0;
+}
+
+// Attempt an OAuth token refresh and fold the result into the credential
+// state. Returns true if the device still has a usable credential afterwards
+// (refresh succeeded, or failed only transiently so the old access token may
+// still work); false if the credential is dead and re-onboarding is required.
+static bool do_refresh() {
+  switch (oauth_refresh()) {
+    case REFRESH_OK:
+      g_apiKey       = secrets_get_access_token();
+      g_expiresAt    = secrets_get_expires_at();
+      g_refreshFails = 0;
+      Serial.printf("[refresh] ok, new access-token expiry=%u\n", g_expiresAt);
+      return true;
+
+    case REFRESH_NET_ERROR: {
+      // Transient — back off, but keep polling: a proactive refresh runs ahead
+      // of expiry, so the current access token is likely still valid.
+      if (g_refreshFails < 255) g_refreshFails++;
+      uint32_t backoff_s = refresh_retry_delay_s(
+          g_refreshFails, REFRESH_BACKOFF_BASE_S, REFRESH_BACKOFF_MAX_S);
+      nextRefreshAtMs = millis() + backoff_s * 1000UL;
+      Serial.printf("[refresh] transient failure #%u, next attempt in %us\n",
+                    g_refreshFails, backoff_s);
+      return true;
+    }
+
+    case REFRESH_NO_TOKEN:
+    case REFRESH_INVALID_GRANT:
+    default:
+      // Definitive — the refresh token is missing or rejected. Stop polling
+      // and prompt the user to re-onboard (ADR 007/008).
+      Serial.println("[refresh] credential is dead -> re-onboard required");
+      g_reauthRequired = true;
+      g_usage.status   = UsageData::REAUTH_REQUIRED;
+      g_usage.stale    = true;
+      return false;
+  }
+}
+
 // --- Poll loop --------------------------------------------------------------
-// Run one poll, fold the outcome into the state machine, schedule the next.
-// A poll blocks for its TLS round-trip (a few seconds); between polls loop()
-// runs normally so buttons stay responsive.
+// Run one poll — refreshing the access token first if it is near expiry, or
+// after a 401 — then fold the outcome into the state machine and schedule the
+// next poll. A poll (and any refresh) blocks for its TLS round-trip (a few
+// seconds); between polls loop() runs normally so buttons stay responsive.
 static void do_poll() {
+  // Proactive refresh: top up the access token before it expires so a poll
+  // never fails for a stale-but-refreshable credential.
+  if (g_credState == CRED_OAUTH && !g_reauthRequired && refresh_gate_open() &&
+      should_refresh(g_expiresAt, poller_time_now(), REFRESH_MARGIN_S)) {
+    Serial.println("[refresh] access token near expiry");
+    do_refresh();
+  }
+
   UsageData fresh = {};
-  PollOutcome outcome = poller_poll(g_apiKey, &fresh);
+  // Skip the poll itself if the proactive refresh just found the credential
+  // dead — treat it as an auth failure so the tail surfaces the re-onboard UI.
+  PollOutcome outcome = g_reauthRequired ? POLL_AUTH_FAIL
+                                         : poller_poll(g_apiKey, &fresh);
+
+  // Reactive refresh: a 401 means the access token was rejected — refresh once
+  // and retry the poll a single time before recording the outcome.
+  if (outcome == POLL_AUTH_FAIL && g_credState == CRED_OAUTH &&
+      !g_reauthRequired && refresh_gate_open()) {
+    Serial.println("[poll] 401 -> token refresh + retry");
+    if (do_refresh() && !g_reauthRequired) {
+      outcome = poller_poll(g_apiKey, &fresh);
+    }
+  }
+
   sm_advance(&g_pollState, outcome);
 
   // Nudge the WiFi link when it is down — auto-reconnect is on, but a poke
@@ -193,6 +285,11 @@ static void do_poll() {
       saved_session = fresh.session_pct;
       saved_weekly  = fresh.weekly_pct;
     }
+  } else if (g_reauthRequired) {
+    // A dead credential overrides the poll status — show the re-onboard
+    // prompt and keep the last-known-good numbers on screen.
+    g_usage.status = UsageData::REAUTH_REQUIRED;
+    g_usage.stale  = true;
   } else {
     // Keep the last-known-good numbers on screen; refresh only status/stale.
     g_usage.status = g_pollState.status;
@@ -235,8 +332,9 @@ void loop() {
   M5.update();
   buttons_poll();
 
-  // Poll Anthropic when the (backoff-adjusted) interval has elapsed.
-  if (g_apiKey.length() > 0 && !resetConfirmShown &&
+  // Poll Anthropic when the (backoff-adjusted) interval has elapsed. A device
+  // whose credential is dead (g_reauthRequired) stays idle until re-onboarded.
+  if (!g_reauthRequired && g_apiKey.length() > 0 && !resetConfirmShown &&
       (int32_t)(millis() - nextPollAtMs) >= 0) {
     do_poll();
   }
