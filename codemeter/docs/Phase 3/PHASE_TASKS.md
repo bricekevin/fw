@@ -104,7 +104,7 @@
 
 ## Epic 5: Testing & documentation
 
-- [ ] **5.1 Host unit tests** — `m5clawd/test/run.sh` green incl. the new refresh-policy suite
+- [x] **5.1 Host unit tests** — `m5clawd/test/run.sh` green incl. the new refresh-policy suite (5 suites, 181 checks, 0 failed — parse_headers 50, format_helpers 22, state_machine 28, refresh_policy 23, oauth_pkce 58)
 - [ ] **5.2 Hardware verification**
   - [ ] Onboard end-to-end via the new flow (no raw-token paste)
   - [ ] Observe a real token refresh across an access-token expiry boundary (force a short margin if needed)
