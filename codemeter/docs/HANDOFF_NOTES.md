@@ -7,6 +7,70 @@
 
 ---
 
+## Session 9 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~45 min
+**Focus:** `/3_dev` Phase 3 — **Epic 1, the OAuth research spike**. Knowledge + two ADRs, no firmware (as planned).
+
+### Completed — Epic 1 done (4/18 Phase 3 tasks)
+
+- **Task 1.1 — OAuth parameters established.** Extracted Claude Code's production
+  OAuth config from the `claude` CLI binary (`strings`/`grep -a` on the Mach-O at
+  `~/.local/share/claude/versions/2.1.143`), the public client-metadata document,
+  and the local Keychain credential *structure* (field names/lengths only, no
+  secret values). Recorded in `docs/Phase 3/PHASE_IMP.md`:
+  - `client_id` `9d1c250a-e61b-44d9-88ed-5944d1962f5e` (public client, PKCE S256,
+    no secret). The binary's second `22422756-…` block is a `-local-oauth` dev
+    config — ignored.
+  - authorize `https://claude.com/cai/oauth/authorize`; token
+    `https://platform.claude.com/v1/oauth/token`; manual redirect
+    `…/oauth/code/callback`.
+  - **Token host `platform.claude.com` chains ISRG Root X1 (Let's Encrypt)** — a
+    *different* root from the poller's GTS Root R4. Epic 2.2 must bundle it.
+- **Task 1.2 — refresh grant: proof deferred to on-device** (Kevin's call). The
+  off-device exchange would use the Mac's live `claude` Keychain refresh token; a
+  rotating grant would log it out. The device's own first refresh (Task 5.2) is
+  the proof. Firmware will handle rotation defensively regardless.
+- **Task 1.3 — ADR 007** (OAuth onboarding): authorize-URL + PKCE + paste-back
+  one-time code, two-stage (WiFi, then OAuth) over concurrent AP+STA. Supersedes
+  ADR 003's API-key field. Loopback redirect and the pairing-helper were
+  considered and rejected. A viable standalone flow exists — no escalation.
+- **Task 1.4 — ADR 008** (refresh-token storage): plaintext NVS; NVS encryption
+  explicitly **deferred to Phase 4**. A refresh token can't be scoped down like
+  an API key, so revocation (not encryption) is the real control — README + the
+  re-onboard UI must make it obvious. Revises ADR 005; Epic 4.2 is now docs-only.
+
+### Files Changed
+
+```text
+docs/Phase 3/PHASE_IMP.md   — Task 1.1 findings block; Task 1.2 deferral note
+docs/Phase 3/PHASE_TASKS.md — Epic 1 checked off (4/18); Epic 4.2 + 5.2 retargeted
+docs/decisions/007-*.md     — new: OAuth onboarding ADR
+docs/decisions/008-*.md     — new: refresh-token storage ADR
+docs/decisions/000-index.md — rows 007/008; status notes on 003/005
+docs/decisions/003-*.md, 005-*.md — superseded/revised banners
+```
+
+### Next Session Should
+
+1. Start **Epic 2** (credential store + token refresh) — method-independent, can
+   begin now. Tasks 2.1 (NVS model: `oauth_at`/`oauth_rt`/`oauth_exp`, retire
+   `anthropic_key`), 2.2 (`oauth.ino` refresh client — bundle ISRG Root X1),
+   2.3 (refresh scheduling), 2.4 (pure `refresh_policy` module + host tests).
+2. Then **Epic 3** is now unblocked — built to ADR 007.
+3. Carry-over still open: rotate the Session-7-leaked OAuth tokens; confirm with
+   Kevin.
+
+### Notes
+
+- Spike worked on branch `phase-2-20260515` (the existing worktree that holds all
+  of Phase 2 + the Phase 3 plan) — Phase 3 continues there rather than a new
+  branch, to keep the plan and its implementation together. Still unpushed.
+- Epic 1 produced no firmware, by design (research-gated phase).
+
+---
+
 ## Session 8 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
