@@ -294,6 +294,37 @@ void ui_show_provisioning() {
                 STATUSBAR_H + PAD_SECTION, 100, 4);
 }
 
+// Onboarding stage 2 — the "Log in with Claude" screen (ADR 007). The device
+// has minted a PKCE session; this tells the user how to authorize. The phone-
+// side portal at 192.168.4.1 carries the tappable authorize link (the reliable
+// path); the QR here is a secondary aid for a second device (e.g. a laptop).
+// It is necessarily dense — the authorize URL is ~345 chars — so ADR 007
+// accepts it may be hard to scan; tune against a device photo (/5_visual).
+void ui_show_oauth_login(const String &authorize_url) {
+  M5.Lcd.fillScreen(COLOR_BG);
+  ui_header("LOG IN WITH CLAUDE");
+
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.setTextDatum(TC_DATUM);
+  M5.Lcd.setTextColor(COLOR_TEXT);
+  M5.Lcd.drawString("On the setup page, tap", 160, STATUSBAR_H + 8);
+  M5.Lcd.setTextColor(COLOR_PRIMARY);
+  M5.Lcd.drawString("\"Log in with Claude\"", 160, STATUSBAR_H + 26);
+
+  // QR of the authorize URL. version 14 holds ~395 bytes at ECC-L; if the URL
+  // somehow exceeds that, skip the QR rather than render a corrupt code.
+  const uint8_t qr_version = 14;
+  const int     qr_width   = 150;     // ~2 px/module at version 14
+  if (authorize_url.length() > 0 && authorize_url.length() <= 390) {
+    M5.Lcd.qrcode(authorize_url.c_str(), (320 - qr_width) / 2,
+                  STATUSBAR_H + 46, qr_width, qr_version);
+  }
+
+  M5.Lcd.setTextDatum(BC_DATUM);
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+  M5.Lcd.drawString("then paste the code back", 160, 240 - PAD_EDGE);
+}
+
 void ui_portal_client_connected() {
   M5.Lcd.fillScreen(COLOR_BG);
   ui_header("CONFIGURE WIFI");

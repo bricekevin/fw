@@ -69,9 +69,9 @@
 > Built to the Epic 1.3 ADR. The tasks below assume the expected outcome —
 > authorize-URL + paste-back one-time code. Revise if the ADR picks otherwise.
 
-- [ ] **3.1 "Log in with Claude" portal step** (`wifi_portal.ino` / `ui.ino`)
-  - [ ] After WiFi is entered, the portal shows the authorize URL (+ a QR) for the user to open on their phone/laptop
-  - [ ] Generate + hold the PKCE verifier/challenge for the session
+- [x] **3.1 "Log in with Claude" portal step** (`wifi_portal.ino` / `ui.ino`)
+  - [x] After WiFi is entered, the portal shows the authorize URL (+ a QR) for the user to open on their phone/laptop
+  - [x] Generate + hold the PKCE verifier/challenge for the session
 
 - [ ] **3.2 Code exchange** (`oauth.ino`)
   - [ ] Portal field for the one-time code the user pastes back

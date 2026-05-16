@@ -103,6 +103,20 @@ enum CredState {
 #define OAUTH_CLIENT_ID "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 #define OAUTH_TOKEN_URL "https://platform.claude.com/v1/oauth/token"
 
+// Onboarding endpoints (ADR 007 — authorize-code + PKCE, paste-back code).
+// The authorize endpoint is the claude.ai / subscription one: M5Clawd reads
+// the Claude Code subscription "unified" rate limits. OAUTH_REDIRECT_URI is the
+// manual callback — claude.ai then shows the one-time code for the user to copy
+// (the headless flow; the device is not a registrable redirect target).
+#define OAUTH_AUTHORIZE_URL "https://claude.com/cai/oauth/authorize"
+#define OAUTH_REDIRECT_URI  "https://platform.claude.com/oauth/code/callback"
+// Minimal scopes — the poller only needs inference; profile aids the consent UI.
+#define OAUTH_SCOPE         "user:inference user:profile"
+
+// WiFiManagerParameter ids for the Epic 3 onboarding portal step.
+#define PARAM_ID_OAUTH_LOGIN "oauth_login"  // read-only "Log in with Claude" block
+#define PARAM_ID_OAUTH_CODE  "oauth_code"   // paste-back one-time code field
+
 // Refresh the access token this many seconds before it expires. Generous (30
 // min) so a flaky network gets many poll-spaced retries before the token
 // actually dies. Epic 5.2 may shrink this to force a refresh during testing.
@@ -182,6 +196,14 @@ enum RefreshResult {
   REFRESH_NET_ERROR,     // transient TLS/HTTP failure -> retry with backoff
 };
 RefreshResult oauth_refresh();
+// Onboarding (Epic 3). oauth_pkce_begin() mints a fresh code_verifier /
+// code_challenge / state for one onboarding session; the others read that
+// session state back. The verifier and state are held in RAM only — a reboot
+// mid-onboarding discards them and the user restarts the login step (ADR 007).
+void   oauth_pkce_begin();
+String oauth_authorize_url();
+String oauth_pkce_verifier();
+String oauth_state_token();
 
 // poller.ino
 void        poller_begin();
@@ -199,6 +221,7 @@ void ui_show_status();
 void ui_show_usage(const UsageData &d);
 void ui_update_usage(const UsageData &d);
 void ui_show_provisioning();
+void ui_show_oauth_login(const String &authorize_url);
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_portal_hint(const char *msg);

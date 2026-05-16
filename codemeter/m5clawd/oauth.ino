@@ -19,6 +19,65 @@
 // auto-generates this tab's prototypes.
 
 #include "certs.h"
+#include "oauth_pkce.h"
+#include <mbedtls/sha256.h>
+#include <esp_system.h>          // esp_fill_random()
+
+// --- Onboarding: PKCE session state (ADR 007) ------------------------------
+// One onboarding "session" is one code_verifier / state pair. They live in RAM
+// only: a reboot mid-onboarding discards them and the user restarts the login
+// step. The verifier is the client's PKCE proof for the Epic 3.2 code exchange;
+// `state` is the anti-CSRF value echoed back in the redirect.
+static String s_pkce_verifier;   // 43-char base64url code_verifier
+static String s_oauth_state;     // 22-char base64url anti-CSRF state
+static String s_authorize_url;   // the assembled "Log in with Claude" URL
+
+// SHA-256(in), base64url-encoded without padding — the PKCE "S256" transform.
+// Applied to the verifier to derive the code_challenge sent in the authorize
+// URL. mbedtls ships with Arduino-ESP32; the _ret variants are the non-
+// deprecated API on core 1.0.4's mbedtls 2.16.
+static String pkce_s256_challenge(const String &verifier) {
+  uint8_t digest[32];
+  mbedtls_sha256_context ctx;
+  mbedtls_sha256_init(&ctx);
+  mbedtls_sha256_starts_ret(&ctx, 0);          // 0 = SHA-256, not SHA-224
+  mbedtls_sha256_update_ret(&ctx, (const unsigned char *)verifier.c_str(),
+                            verifier.length());
+  mbedtls_sha256_finish_ret(&ctx, digest);
+  mbedtls_sha256_free(&ctx);
+  return String(pkce_base64url(digest, sizeof(digest)).c_str());
+}
+
+// Mint a fresh PKCE verifier + challenge + `state` and assemble the authorize
+// URL for one onboarding session. The hardware RNG (esp_fill_random) seeds both
+// secrets. Call once when the "Log in with Claude" step begins.
+void oauth_pkce_begin() {
+  uint8_t verifier_bytes[32];                  // -> 43-char base64url verifier
+  uint8_t state_bytes[16];                     // -> 22-char base64url state
+  esp_fill_random(verifier_bytes, sizeof(verifier_bytes));
+  esp_fill_random(state_bytes, sizeof(state_bytes));
+
+  s_pkce_verifier =
+      String(pkce_base64url(verifier_bytes, sizeof(verifier_bytes)).c_str());
+  s_oauth_state =
+      String(pkce_base64url(state_bytes, sizeof(state_bytes)).c_str());
+
+  String challenge = pkce_s256_challenge(s_pkce_verifier);
+  s_authorize_url = String(
+      oauth_build_authorize_url(OAUTH_AUTHORIZE_URL, OAUTH_CLIENT_ID,
+                                OAUTH_REDIRECT_URI, OAUTH_SCOPE,
+                                challenge.c_str(), s_oauth_state.c_str())
+          .c_str());
+
+  // Never log the verifier — secret_redactor() guards it; the URL carries only
+  // the (non-secret) challenge so it is safe to log for onboarding diagnostics.
+  Serial.printf("[oauth] PKCE session ready (verifier=%s, url len=%u)\n",
+                secret_redactor(s_pkce_verifier), s_authorize_url.length());
+}
+
+String oauth_authorize_url() { return s_authorize_url; }
+String oauth_pkce_verifier() { return s_pkce_verifier; }
+String oauth_state_token()   { return s_oauth_state; }
 
 // Refresh-grant request body. JSON content-type, per the Epic 1 spike. The
 // refresh token is a well-formed OAuth token (sk-ant-ort...) — alphanumeric
