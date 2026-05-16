@@ -31,18 +31,16 @@ String getParam(String name) {
   return value;
 }
 
-// Stage 1 only — swap the LCD art as phones join / leave the soft-AP. A joined
-// phone advances onboarding step 1 (join the AP) to step 2 (open the portal).
+// Stage 1 only — advance the LCD from step 1 (join the AP) to step 2 (open the
+// portal) when a phone joins the soft-AP. Phones routinely drop a no-internet
+// AP and rejoin, which previously flickered the screen 1<->2 on every
+// connect/disconnect event. So step 2 is drawn exactly once, on the first
+// client, and never reverted — the QR/URL on it stays valid for reconnects.
 void WiFiEvent(WiFiEvent_t event, system_event_info_t info) {
-  switch (event) {
-    case SYSTEM_EVENT_AP_STACONNECTED:
-      ui_portal_client_connected();   // step 2 — "open the portal" QR
-      break;
-    case SYSTEM_EVENT_AP_STADISCONNECTED:
-      ui_show_provisioning();         // step 1 — "join the AP" QR
-      break;
-    default:
-      break;
+  static bool clientSeen = false;
+  if (event == SYSTEM_EVENT_AP_STACONNECTED && !clientSeen) {
+    clientSeen = true;
+    ui_portal_client_connected();   // step 2 — "open the portal" QR
   }
 }
 
@@ -67,12 +65,17 @@ static const char PORTAL_CSS[] =
     "</style>";
 
 // --- Stage 1 — WiFi credentials over the soft-AP captive portal ------------
-// Runs the portal non-blocking (setConfigPortalBlocking(false)) so this
-// function owns the loop: process() drives the portal, and — since loop() is
-// not running yet — the button-C reset gesture is handled here too. onWifiSaved()
-// sets the configured flag once credentials are saved and the connection
-// succeeds, ending the loop so the device reboots into station mode. No custom
-// field here — the ADR 003 API-key field is gone (superseded by OAuth, ADR 007).
+// startConfigPortal() blocks until the portal exits; onWifiSaved() sets the
+// configured flag once WiFi credentials are saved and the connection succeeds,
+// so the loop ends and the device reboots into station mode. No custom field
+// here — the ADR 003 API-key field is gone (superseded by OAuth, ADR 007).
+//
+// This stage is intentionally BLOCKING. A non-blocking portal was tried so the
+// button-C reset could be serviced here, but blocking startConfigPortal()
+// retries a flaky first connect internally (hardware logs show the first STA
+// connect often fails, then succeeds) — the non-blocking loop lost that retry
+// and got stuck "connected but not saved". The reset gesture is not needed in
+// Stage 1 anyway: no credentials are stored yet, so there is nothing to wipe.
 void wifi_portal_wifi_stage() {
   wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setAPCallback(onConfigModeCallback);
@@ -81,36 +84,14 @@ void wifi_portal_wifi_stage() {
   wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
   wifiManager.setShowInfoUpdate(false);
   wifiManager.setShowInfoErase(false);
-  wifiManager.setConfigPortalBlocking(false);      // we pump process() below
   std::vector<const char *> wm_menu = {"wifi", "exit"};
   wifiManager.setMenu(wm_menu);
 
   WiFi.onEvent(WiFiEvent);
-  wifiManager.startConfigPortal(ap_ssid().c_str());
 
-  bool resetArmed = false;
   while (!secrets_is_configured()) {
-    wifiManager.process();
-    M5.update();
-
-    if (M5.BtnC.pressedFor(RESET_HOLD_MS) && !resetArmed) {
-      resetArmed = true;
-      ui_show_reset_confirm();
-    }
-    if (resetArmed && M5.BtnC.pressedFor(RESET_HOLD_MS + 2000)) {
-      Serial.println("[reset] wiping NVS + WiFi credentials (Stage 1)");
-      secrets_reset();
-      delay(300);
-      ESP.restart();
-    }
-    if (resetArmed && M5.BtnC.wasReleased()) {
-      resetArmed = false;                  // released early -> aborted
-      ui_show_provisioning();              // repaint the step-1 screen
-    }
-
-    delay(20);
+    wifiManager.startConfigPortal(ap_ssid().c_str());
   }
-  wifiManager.stopConfigPortal();
 
   Serial.println("[portal] WiFi saved -> restarting into station mode");
   delay(500);
