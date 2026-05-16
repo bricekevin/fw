@@ -73,10 +73,10 @@
   - [x] After WiFi is entered, the portal shows the authorize URL (+ a QR) for the user to open on their phone/laptop
   - [x] Generate + hold the PKCE verifier/challenge for the session
 
-- [ ] **3.2 Code exchange** (`oauth.ino`)
-  - [ ] Portal field for the one-time code the user pastes back
-  - [ ] Device exchanges code + PKCE verifier for access + refresh tokens at the token endpoint; persists them
-  - [ ] Reject a bad code with a clear on-screen hint (reuse the portal-hint pattern)
+- [~] **3.2 Code exchange** (`oauth.ino`)
+  - [ ] Portal field for the one-time code the user pastes back — _wired in 3.3 (the portal restructure); the capability below is method-independent, like the 2.2/2.3 split_
+  - [x] Device exchanges code + PKCE verifier for access + refresh tokens at the token endpoint; persists them — `oauth_exchange_code()` (handles `code` or `code#state`, state-checks, persists via `secrets_save_tokens()`)
+  - [~] Reject a bad code with a clear on-screen hint — `oauth_exchange_code()` returns `EXCHANGE_BAD_CODE`; the `ui_portal_hint()` wiring lands with the portal field in 3.3
 
 - [ ] **3.3 Onboarding sequencing** (`m5clawd.ino` / `wifi_portal.ino`)
   - [ ] Stage the flow: WiFi credentials first, then the OAuth step (the OAuth exchange needs internet)
