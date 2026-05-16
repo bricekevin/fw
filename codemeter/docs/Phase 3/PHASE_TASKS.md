@@ -105,8 +105,8 @@
 ## Epic 5: Testing & documentation
 
 - [x] **5.1 Host unit tests** — `m5clawd/test/run.sh` green incl. the new refresh-policy suite (5 suites, 181 checks, 0 failed — parse_headers 50, format_helpers 22, state_machine 28, refresh_policy 23, oauth_pkce 58)
-- [ ] **5.2 Hardware verification**
-  - [ ] Onboard end-to-end via the new flow (no raw-token paste)
+- [~] **5.2 Hardware verification**
+  - [~] Onboard end-to-end via the new flow (no raw-token paste) — Session 17: flashed OK; Stage 1 soft-AP captive portal + WiFi entry **verified**; AP->STA reboot + `station_connect()` **verified**; Stage 2 web portal on the LAN IP + the `/param` page **verified** (the Session 11 "riskiest unproven assumption"); OAuth **authorize** flow **verified working** after three fixes (scope, 43-char state, exchange `state`). **Blocked:** the code exchange itself is unverified — the token endpoint is returning HTTP 429 (rate-limited by repeated test attempts); needs a cooldown then one clean run
   - [ ] Observe a real token refresh across an access-token expiry boundary (force a short margin if needed)
   - [ ] **Carry-over from Task 1.2:** on that first refresh, record whether the response carried a new `refresh_token` (rotation) and whether the old one still worked — back-fill the "refresh rotates?" answer in PHASE_IMP.md
   - [ ] Multi-day unattended run — poll-success ≥ 99%, no manual steps

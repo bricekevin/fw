@@ -1,9 +1,113 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-16 (Session 16)
+**Last Updated:** 2026-05-16 (Session 17)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 17 — 2026-05-16
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~2.5 h
+**Focus:** `/3_dev` Phase 3 — **Epic 5.2 hardware verification**: first real
+on-device flash + onboarding run. Found and fixed four OAuth bugs.
+
+### Verified on hardware
+
+Device: M5Stack Core Basic, `/dev/cu.usbserial-02132522`, STA IP
+192.168.0.154, MAC suffix 0D0A10. Serial read via pyserial (DTR/RTS reset).
+
+- **Flash** — `./flash.sh` clean over USB-C; 88% flash.
+- **Stage 1** — boots to onboarding, soft-AP `M5Clawd-0D0A10`, captive
+  portal, WiFi credentials entered and saved.
+- **AP -> STA reboot + `station_connect()`** — device reboots out of Stage 1
+  and reconnects in station mode (the Session 11 carry-over bug — looks
+  fixed; see "Watch" for one transient WiFi-down boot).
+- **Stage 2 web portal** — `startWebPortal()` serves the `/param` page on the
+  LAN IP and the OAuth fields render. This was Session 11's "riskiest unproven
+  assumption" — **confirmed working**.
+- **OAuth authorize flow** — after the three fixes below, claude.com shows the
+  consent screen and issues a one-time code.
+
+### Fixed — four OAuth bugs (all found on hardware)
+
+Root-caused by disassembling the `claude` CLI's own OAuth code
+(`~/.local/share/claude/versions/2.1.143`, the `dB_`/`buildAuthUrl` and
+`pKH`/PKCE functions) — the authoritative reference.
+
+1. **Scope** (`config.h`) — was `user:inference user:profile`, which is
+   neither registered scope set. The client accepts only `user:inference` or
+   the full `user:profile user:inference user:sessions:claude_code
+   user:mcp_servers`. Fixed to `user:inference`. (Symptom: login dumped the
+   user back to the Claude app, no code.)
+2. **State length** (`oauth.ino`) — `oauth_pkce_begin()` built `state` from
+   16 bytes (22 chars); the CLI uses 32 bytes (43 chars). The short state was
+   rejected as "invalid request format". Fixed to 32 bytes.
+3. **Exchange `state`** (`oauth.ino`) — `oauth_exchange_body()` omitted
+   `state`; the CLI's `authorization_code` grant includes it. Added.
+4. **HTTP 429 misclassification** (`oauth.ino`, `config.h`,
+   `secrets_store.ino`) — both `oauth_exchange_code()` and `oauth_refresh()`
+   lumped 429 into the fatal 4xx branch: the exchange reported
+   `EXCHANGE_BAD_CODE` ("Code rejected" — wrong, the code was fine) and
+   refresh reported `REFRESH_INVALID_GRANT` (would force a needless
+   re-onboard on a transient 429). Split 429 out: new `EXCHANGE_RATE_LIMITED`
+   with a "Rate limited - wait, then log in again" hint; refresh maps 429 to
+   `REFRESH_NET_ERROR` (backoff).
+
+Commits: `correct OAuth scope + exchange state`, `43-char state`,
+`429 transient handling`.
+
+### BLOCKED — token endpoint rate limit (HTTP 429)
+
+The `authorization_code` exchange itself is **still unverified**. ~6
+onboarding attempts across the session rate-limited
+`platform.claude.com/v1/oauth/token`; every exchange POST returns 429. Serial
+proof: `[oauth] exchange rejected: code=429`. The pasted code was never
+actually evaluated (429 is rejected at the limiter).
+
+**Next attempt must wait out a real cooldown** — stop retrying (each attempt
+feeds the limiter), leave the endpoint alone for 1-2 h+ (possibly until the
+next day), then do **one** clean run with a live serial capture started
+before the paste.
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` clean — 88% flash.
+- Host tests: all 5 suites pass (181 checks) — OAuth changes are Arduino-side.
+
+### Files Changed
+
+```text
+m5clawd/config.h        — OAUTH_SCOPE -> "user:inference"; EXCHANGE_RATE_LIMITED
+m5clawd/oauth.ino       — 43-char state; exchange sends state; 429 handling
+m5clawd/secrets_store.ino — EXCHANGE_RATE_LIMITED portal hint
+docs/Phase 3/PHASE_TASKS.md — 5.2 -> [~] with the verified/blocked breakdown
+```
+
+### Known Issues / Watch
+
+- **One transient WiFi-down boot.** At 11:00 the device booted with stored
+  WiFi creds but `station_connect()` failed all 3 attempts; a later re-onboard
+  connected fine (after one retry). Could be 2.4 GHz congestion or an
+  AP-teardown timing edge. Watch across more boots — if it recurs,
+  `station_connect()` may need a longer settle or more attempts.
+- The claude.com code success page is **too wide on a phone** — the user
+  found the code hard to read/copy and hard to navigate back from. This is
+  claude.com's page, not M5Clawd's; mitigations are using a laptop or the
+  new-tab behaviour. No firmware fix.
+- The exchange path (`expires_in` handling, token persistence, rotation) is
+  code-correct but **unverified on hardware** behind the 429.
+
+### Next Session Should
+
+1. **Wait out the 429**, then one clean onboarding run with serial capture —
+   confirm `EXCHANGE_OK`, tokens persist, device reboots into the usage
+   screen. That completes the 5.2 "onboard end-to-end" item.
+2. Then the rest of 5.2 (refresh across an expiry boundary; rotation
+   back-fill) and the 4.3 hardware items.
+3. 5.3 documentation.
 
 ---
 
