@@ -1,9 +1,17 @@
 # ADR 003: Captive-Portal Onboarding via WiFiManager
 
 **Date:** 2026-05-14
-**Status:** Accepted
+**Status:** Accepted — API-key step superseded by [ADR 007](007-oauth-onboarding-mechanism.md)
 **Deciders:** Kevin Brice
-**Related:** [002-wifi-vs-ble-daemon](002-wifi-vs-ble-daemon.md), [005-secrets-storage-nvs](005-secrets-storage-nvs.md)
+**Related:** [002-wifi-vs-ble-daemon](002-wifi-vs-ble-daemon.md), [005-secrets-storage-nvs](005-secrets-storage-nvs.md), [007-oauth-onboarding-mechanism](007-oauth-onboarding-mechanism.md)
+
+---
+
+> **Superseded in part (2026-05-15).** Phase 2 testing showed the device needs a
+> Claude Code **OAuth** credential, not an `sk-ant-` API key. The "custom field
+> for the Anthropic API key" step below is replaced by the OAuth flow in
+> [ADR 007](007-oauth-onboarding-mechanism.md). The WiFi-credential collection
+> via WiFiManager (Stage 1) described here **still stands**.
 
 ---
 

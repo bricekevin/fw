@@ -29,10 +29,12 @@ Each ADR follows this structure:
 | --- | ------------------------------------------- | ---------- | -------- |
 | 001 | Tech stack selection                        | 2026-05-14 (rev. 2026-05-15) | Accepted |
 | 002 | WiFi-direct vs BLE + host daemon            | 2026-05-14 | Accepted |
-| 003 | Captive-portal onboarding via WiFiManager   | 2026-05-14 | Accepted |
+| 003 | Captive-portal onboarding via WiFiManager   | 2026-05-14 | Accepted (API-key step superseded by 007) |
 | 004 | Port to sibling repo, do not fork           | 2026-05-14 (rev. 2026-05-15) | Accepted |
-| 005 | Secrets storage in NVS, no host keychain    | 2026-05-14 | Accepted |
+| 005 | Secrets storage in NVS, no host keychain    | 2026-05-14 (rev. 2026-05-15) | Accepted (revised by 008) |
 | 006 | Start from a copy-and-strip of the crypto ticker | 2026-05-15 | Accepted |
+| 007 | OAuth onboarding via authorize-URL + paste-back code | 2026-05-15 | Accepted |
+| 008 | Refresh-token storage — plaintext NVS, encryption deferred | 2026-05-15 | Accepted |
 
 ---
 
@@ -56,4 +58,4 @@ Create a new ADR for decisions that:
 
 ---
 
-**Last Updated:** 2026-05-14
+**Last Updated:** 2026-05-15

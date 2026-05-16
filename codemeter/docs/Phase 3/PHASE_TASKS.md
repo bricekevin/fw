@@ -1,6 +1,6 @@
 # Phase 3 - OAuth Onboarding + Token Refresh Tasks
 
-**Status:** 1/18 — Epic 1 spike in progress
+**Status:** 4/18 — Epic 1 spike complete; Epic 2 next
 **Updated:** 2026-05-15
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for spike commands and
@@ -28,14 +28,14 @@
   - [x] Refresh-token rotation: **assume yes, handle defensively** in Epic 2.2; empirical answer back-filled by Task 5.2
   - [x] Request + response shape captured in PHASE_IMP.md (Task 1.1 findings block)
 
-- [ ] **1.3 ADR — choose the onboarding mechanism**
-  - [ ] Compare: authorize-URL + paste-back one-time code (expected) vs one-shot pairing helper vs anything the spike surfaces
-  - [ ] Write a new ADR selecting one; it supersedes ADR 003 (WiFiManager-only onboarding)
-  - [ ] If no viable standalone flow exists, STOP and escalate to the user — the standalone premise is at stake
+- [x] **1.3 ADR — choose the onboarding mechanism**
+  - [x] Compared: authorize-URL + paste-back code vs loopback redirect vs pairing helper vs manual token paste
+  - [x] Wrote ADR 007 — authorize-URL + PKCE + paste-back one-time code; supersedes ADR 003's API-key step
+  - [x] A viable standalone flow exists (Claude Code's headless login path) — no escalation needed
 
-- [ ] **1.4 ADR — refresh-token storage**
-  - [ ] Threat-model a refresh token in plaintext NVS vs a scoped API key
-  - [ ] Decide NVS encryption in-scope (Epic 4) or explicitly deferred; revise ADR 005 accordingly
+- [x] **1.4 ADR — refresh-token storage**
+  - [x] Threat-modelled a refresh token in plaintext NVS (it cannot be scoped down like an API key — revocation is the real control)
+  - [x] Wrote ADR 008 — plaintext NVS, encryption explicitly DEFERRED to Phase 4; Epic 4.2 becomes a docs task; revises ADR 005
 
 ---
 
@@ -93,8 +93,8 @@
   - [ ] Distinct "re-onboard required" screen/badge (refresh token revoked / invalid) with instructions
   - [ ] A transient "refreshing…" indication; ensure stale data stays visible meanwhile
 
-- [ ] **4.2 Refresh-token storage hardening** (scope per ADR 1.4)
-  - [ ] If in-scope: NVS encryption for the credential blob; else document the deferral and the device-loss revocation guidance
+- [ ] **4.2 Refresh-token storage — documentation** (scoped by ADR 008)
+  - [ ] ADR 008 deferred NVS encryption to Phase 4; this task is **docs only**: write the device-loss revocation guidance into the README and the "re-onboard required" UI copy (the mandatory compensating controls from ADR 008)
 
 - [ ] **4.3 Re-onboard robustness**
   - [ ] Verify the device recovers cleanly from: expired access token, revoked refresh token, and a mid-refresh power loss

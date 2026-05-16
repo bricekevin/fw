@@ -1,9 +1,18 @@
 # ADR 005: Secrets Storage in NVS
 
 **Date:** 2026-05-14
-**Status:** Accepted
+**Status:** Accepted — revised by [ADR 008](008-refresh-token-storage.md)
 **Deciders:** Kevin Brice
-**Related:** [002-wifi-vs-ble-daemon](002-wifi-vs-ble-daemon.md), [003-onboarding-via-wifimanager](003-onboarding-via-wifimanager.md)
+**Related:** [002-wifi-vs-ble-daemon](002-wifi-vs-ble-daemon.md), [003-onboarding-via-wifimanager](003-onboarding-via-wifimanager.md), [008-refresh-token-storage](008-refresh-token-storage.md)
+
+---
+
+> **Revised (2026-05-15).** Phase 3 replaces the single `anthropic_key` API key
+> with an OAuth credential record (access token + **refresh token** + expiry).
+> [ADR 008](008-refresh-token-storage.md) extends the NVS layout below and
+> re-decides the encryption trade-off for the higher-value refresh token. The
+> plaintext-NVS storage mechanism and the encryption *deferral* are unchanged;
+> ADR 008's compensating controls (revocation guidance) are new.
 
 ---
 
