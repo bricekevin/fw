@@ -134,3 +134,17 @@ void secrets_reset() {
   preferences.end();
   wifiManager.resetSettings();
 }
+
+// Clear only the OAuth credential record (access + refresh + expiry, plus the
+// legacy key), leaving the WiFi credentials and the configured flag intact.
+// The "change credential" path (Task 3.4): the next boot skips Stage 1 and,
+// finding CRED_NONE, re-enters Stage 2 OAuth onboarding.
+void secrets_clear_oauth() {
+  preferences.begin(NVS_NAMESPACE, false);
+  preferences.remove(NVS_KEY_OAUTH_AT);
+  preferences.remove(NVS_KEY_OAUTH_RT);
+  preferences.remove(NVS_KEY_OAUTH_EXP);
+  preferences.remove(NVS_KEY_API_KEY);
+  preferences.end();
+  Serial.println("[secrets] OAuth credential cleared (WiFi kept)");
+}

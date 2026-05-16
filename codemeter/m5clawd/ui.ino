@@ -370,3 +370,16 @@ void ui_show_reset_confirm() {
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.drawString("Keep holding C to wipe config", 160, 138);
 }
+
+// Confirm screen for the "change credential" gesture (Task 3.4) — held button
+// B. Distinct from the red full-reset screen: this keeps WiFi, re-onboards only
+// the Claude login.
+void ui_show_reonboard_confirm() {
+  M5.Lcd.fillScreen(COLOR_PRIMARY);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.setFreeFont(FSSB12);
+  M5.Lcd.setTextColor(COLOR_TEXT);
+  M5.Lcd.drawString("RE-ONBOARD", 160, 100);
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.drawString("Keep holding B to change login", 160, 138);
+}

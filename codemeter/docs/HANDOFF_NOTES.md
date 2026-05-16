@@ -1,9 +1,70 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-15 (Session 12)
+**Last Updated:** 2026-05-15 (Session 13)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 13 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~40 min
+**Focus:** `/3_dev` Phase 3 — **Epic 3 Task 3.4**, the "change credential"
+gesture. Epic 3 is now complete (12/18 Phase 3 tasks).
+
+### Completed — Task 3.4
+
+- **Button B long-press = re-onboard OAuth only.** Mirrors the existing C
+  reset gesture: hold B 5 s -> orange "RE-ONBOARD" confirm screen
+  (`ui_show_reonboard_confirm()`); hold to 7 s -> commit. A short B press
+  still forces an immediate poll (moved from `wasPressed()` to the
+  `wasReleased()` non-confirm branch so the long-press doesn't also poll).
+- **`secrets_clear_oauth()`** (`secrets_store.ino`) — `preferences.remove()`s
+  only the OAuth keys (`oauth_at` / `oauth_rt` / `oauth_exp`) and the legacy
+  `anthropic_key`, leaving the WiFi creds and `NVS_KEY_CONFIGURED` intact.
+  After it the device reboots: Stage 1 is skipped (WiFi still configured),
+  `secrets_cred_state()` returns `CRED_NONE`, and the existing boot logic
+  re-enters `wifi_portal_oauth_stage()` — no new onboarding code needed.
+- New `reonboardConfirmShown` flag guards `do_poll()` and the two `loop()`
+  paths so a poll/redraw never paints over the confirm screen (same treatment
+  `resetConfirmShown` already gets).
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` **clean** — 88% flash
+  (1,158,278 B), 13% RAM.
+- Host tests: **all 5 suites pass** (181 checks) — no pure module touched.
+- **Not flashed.** Hardware check for Epic 5: confirm B-hold timing feels
+  right and doesn't collide with the C reset; confirm the post-clear reboot
+  lands in Stage 2 with WiFi still connected.
+
+### Files Changed
+
+```text
+m5clawd/secrets_store.ino — new secrets_clear_oauth() (OAuth-only NVS wipe)
+m5clawd/ui.ino            — new ui_show_reonboard_confirm() (orange confirm screen)
+m5clawd/m5clawd.ino       — B long-press gesture; reonboardConfirmShown guards
+m5clawd/config.h          — prototypes for the two new functions
+```
+
+### Known Issues / Watch
+
+- Two "hold" gestures now exist (B = re-onboard, C = full reset). The
+  `ui_show_wifi_error()` copy still says "Hold button C 5s to re-onboard" —
+  technically C wipes everything; left as-is (a WiFi-error device genuinely
+  needs the full reset). Revisit copy in Epic 4.1.
+- The B gesture is not advertised on-screen anywhere — discoverability is an
+  Epic 4.1 (OAuth UI states) concern.
+
+### Next Session Should
+
+1. **Epic 4** — Task 4.1 (OAuth UI states: "re-onboard required" screen +
+   "refreshing…" indicator), 4.2 (re-onboard docs), 4.3 (re-onboard
+   robustness).
+2. **Epic 5** — flash the device and run the hardware verification backlog
+   from Sessions 11–13.
 
 ---
 

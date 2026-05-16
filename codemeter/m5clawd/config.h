@@ -183,6 +183,7 @@ uint32_t    secrets_get_expires_at();
 void        secrets_save_tokens(const String &access, const String &refresh,
                                 uint32_t expires_at);
 void        secrets_reset();
+void        secrets_clear_oauth();
 void        onWifiSaved();           // WiFiManager callback — home WiFi creds saved
 void        oauthCodeSaveCallback(); // Stage 2 portal — paste-back code submitted
 const char *secret_redactor(const String &k);
@@ -230,5 +231,6 @@ void ui_show_provisioning();
 void ui_show_oauth_login(const String &portal_url);
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
+void ui_show_reonboard_confirm();
 void ui_portal_hint(const char *msg);
 void ui_portal_client_connected();

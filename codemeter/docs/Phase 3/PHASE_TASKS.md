@@ -82,8 +82,8 @@
   - [x] Stage the flow: WiFi credentials first, then the OAuth step (the OAuth exchange needs internet) — two staged WiFiManager sessions with a reboot between; Stage 2 web portal on the home LAN (ADR 009, supersedes ADR 007's "soft-AP stays up")
   - [x] Fold in the carry-over fix: harden `station_connect()` — settle delay before `WiFi.begin()` + up to 3 connect attempts
 
-- [ ] **3.4 "Change credential" path**
-  - [ ] A way to re-run just the OAuth step (re-onboard the token) without wiping WiFi creds — e.g. a dedicated button gesture or portal menu entry
+- [x] **3.4 "Change credential" path**
+  - [x] A way to re-run just the OAuth step (re-onboard the token) without wiping WiFi creds — button B long-press gesture (5 s + 2 s confirm, mirroring the C reset). `secrets_clear_oauth()` drops only the OAuth keys; the next boot skips Stage 1 and re-enters Stage 2 OAuth onboarding
 
 ---
 

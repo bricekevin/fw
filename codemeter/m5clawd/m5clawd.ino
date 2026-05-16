@@ -39,8 +39,9 @@ bool                 g_oauth_onboarded = false;  // set on a good Stage 2 exchan
 
 enum Screen { SCREEN_SPLASH, SCREEN_USAGE, SCREEN_STATUS, SCREEN_COUNT };
 static Screen currentScreen     = SCREEN_SPLASH;
-static bool   backlightOn       = true;
-static bool   resetConfirmShown = false;
+static bool   backlightOn           = true;
+static bool   resetConfirmShown     = false;
+static bool   reonboardConfirmShown = false;
 
 // --- Poll-loop state (visible to ui.ino) -----------------------------------
 UsageData       g_usage      = {};   // latest usage; status UNKNOWN until first poll
@@ -188,10 +189,27 @@ static void buttons_poll() {
     show_current_screen();
   }
 
-  // Button B — force an immediate poll on the next loop pass.
-  if (M5.BtnB.wasPressed()) {
-    Serial.println("[poll] manual refresh (button B)");
-    nextPollAtMs = millis();
+  // Button B — short press forces an immediate poll; a long-press (5 s, then
+  // +2 s to commit — mirroring C) re-runs OAuth onboarding without wiping the
+  // WiFi credentials (Task 3.4, the "change credential" gesture).
+  if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !reonboardConfirmShown) {
+    reonboardConfirmShown = true;
+    ui_show_reonboard_confirm();
+  }
+  if (reonboardConfirmShown && M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
+    Serial.println("[reonboard] clearing OAuth credential, keeping WiFi");
+    secrets_clear_oauth();
+    delay(300);
+    ESP.restart();
+  }
+  if (M5.BtnB.wasReleased()) {
+    if (reonboardConfirmShown) {
+      reonboardConfirmShown = false;         // released early -> aborted
+      show_current_screen();
+    } else {
+      Serial.println("[poll] manual refresh (button B)");
+      nextPollAtMs = millis();
+    }
   }
 
   // Button C — long-press (5 s) arms the NVS-wipe; +2 s more commits it.
@@ -336,7 +354,7 @@ static void do_poll() {
                   heap, (unsigned)POLL_HEAP_FLOOR);
   }
 
-  if (resetConfirmShown) return;
+  if (resetConfirmShown || reonboardConfirmShown) return;
 
   // First good poll after a failed boot-time connect: surface the Usage view.
   if (outcome == POLL_OK && currentScreen == SCREEN_SPLASH) {
@@ -361,7 +379,7 @@ void loop() {
   // Poll Anthropic when the (backoff-adjusted) interval has elapsed. A device
   // whose credential is dead (g_reauthRequired) stays idle until re-onboarded.
   if (!g_reauthRequired && g_apiKey.length() > 0 && !resetConfirmShown &&
-      (int32_t)(millis() - nextPollAtMs) >= 0) {
+      !reonboardConfirmShown && (int32_t)(millis() - nextPollAtMs) >= 0) {
     do_poll();
   }
 
@@ -369,7 +387,8 @@ void loop() {
   // the Usage screen's "updated Xs ago" stamp. The Usage refresh is a partial
   // redraw, so it never flickers the cards.
   static unsigned long lastScreenRefresh = 0;
-  if (!resetConfirmShown && millis() - lastScreenRefresh >= 3000) {
+  if (!resetConfirmShown && !reonboardConfirmShown &&
+      millis() - lastScreenRefresh >= 3000) {
     lastScreenRefresh = millis();
     if (currentScreen == SCREEN_STATUS)     ui_show_status();
     else if (currentScreen == SCREEN_USAGE) ui_update_usage(g_usage);
