@@ -265,91 +265,71 @@ void ui_update_usage(const UsageData &d) {
   }
 }
 
-void ui_show_provisioning() {
+// --- Onboarding screens ----------------------------------------------------
+// The three onboarding steps share one template so the layout never shifts
+// between steps: a header with a "STEP n/3" badge, an action title, a centred
+// fixed-size QR, and two instruction lines. Uniform placement means the QR
+// stays put step-to-step and the badge always shows where the user is.
+static void ui_onboard_screen(int step, const char *action, const char *qr,
+                              uint8_t qr_version, const String &line1,
+                              const String &line2) {
   M5.Lcd.fillScreen(COLOR_BG);
-  ui_header("CONFIGURE WIFI");
 
-  String ssid = ap_ssid();
-  M5.Lcd.setTextDatum(TL_DATUM);
+  // Header — app name left, "STEP n/3" badge right.
+  M5.Lcd.fillRect(0, 0, 320, STATUSBAR_H, COLOR_SURFACE);
   M5.Lcd.setFreeFont(FSS9);
-
-  int x = PAD_EDGE;
-  int y = STATUSBAR_H + PAD_SECTION;
-
+  M5.Lcd.setTextColor(COLOR_PRIMARY);
+  M5.Lcd.setTextDatum(ML_DATUM);
+  M5.Lcd.drawString("M5CLAWD SETUP", PAD_EDGE, STATUSBAR_H / 2 + 1);
+  char badge[12];
+  snprintf(badge, sizeof(badge), "STEP %d/3", step);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("1. Join WiFi network:", x, y);
-  y += 22;
+  M5.Lcd.setTextDatum(MR_DATUM);
+  M5.Lcd.drawString(badge, 320 - PAD_EDGE, STATUSBAR_H / 2 + 1);
+
+  // Action title.
+  M5.Lcd.setFreeFont(FSS12);
   M5.Lcd.setTextColor(COLOR_TEXT);
-  M5.Lcd.drawString(ssid, x + 12, y);
-  y += 30;
-  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("2. Open in a browser:", x, y);
-  y += 22;
-  M5.Lcd.setTextColor(COLOR_TEXT);
-  M5.Lcd.drawString("http://192.168.4.1", x + 12, y);
+  M5.Lcd.setTextDatum(TC_DATUM);
+  M5.Lcd.drawString(action, 160, STATUSBAR_H + 6);
 
-  // QR code that joins the open soft-AP directly (no password).
-  String qr = "WIFI:T:nopass;S:" + ssid + ";;";
-  M5.Lcd.qrcode(qr.c_str(), 320 - 100 - PAD_EDGE,
-                STATUSBAR_H + PAD_SECTION, 100, 4);
-}
+  // Centred QR — identical size and position on every step.
+  const int qr_w = 130;
+  M5.Lcd.qrcode(qr, (320 - qr_w) / 2, STATUSBAR_H + 30, qr_w, qr_version);
 
-// Onboarding step 3 — the "Log in with Claude" screen (ADR 007/009). The
-// device is on the home network and serving the Stage 2 web portal at
-// `portal_url` (its LAN IP). The QR encodes that LAN URL — short, low-density,
-// reliably scannable. The phone (still on home WiFi, so it keeps internet)
-// lands on the device-hosted page, which carries the "Log in with Claude"
-// link and the paste-back code field — the user does the login + paste there.
-void ui_show_oauth_login(const String &portal_url) {
-  M5.Lcd.fillScreen(COLOR_BG);
-  ui_header("LOG IN WITH CLAUDE");
-
+  // Two instruction lines below the QR.
+  int y = STATUSBAR_H + 30 + qr_w + 8;
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextDatum(TC_DATUM);
+  M5.Lcd.setTextColor(COLOR_TEXT);
+  M5.Lcd.drawString(line1, 160, y);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("1. Scan to open the setup page", 160, STATUSBAR_H + 4);
-
-  // QR of the LAN portal URL (~20 chars). version 4 holds ~50 bytes at ECC-L
-  // with a comfortable module size — matches the step-1 / step-2 QRs.
-  const uint8_t qr_version = 4;
-  const int     qr_width   = 146;
-  if (portal_url.length() > 0) {
-    M5.Lcd.qrcode(portal_url.c_str(), (320 - qr_width) / 2,
-                  STATUSBAR_H + 22, qr_width, qr_version);
-  }
-
-  int y = STATUSBAR_H + 22 + qr_width + 4;          // just below the QR
-  M5.Lcd.setTextColor(COLOR_PRIMARY);
-  M5.Lcd.drawString(portal_url, 160, y);
-  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("2. Log in with Claude, paste the code", 160, y + 16);
+  M5.Lcd.drawString(line2, 160, y + 16);
 }
 
-// Onboarding step 2 — a phone has joined the soft-AP. If the captive portal
-// did not auto-open, this QR / URL takes the user to it.
+// Step 1 — join the device's soft-AP. QR is a WIFI: join string for the open
+// AP; the SSID is shown too for manual entry.
+void ui_show_provisioning() {
+  String ssid = ap_ssid();
+  String qr = "WIFI:T:nopass;S:" + ssid + ";;";
+  ui_onboard_screen(1, "Join this WiFi", qr.c_str(), 4,
+                    ssid, "or open  192.168.4.1");
+}
+
+// Step 2 — a phone has joined the soft-AP. If the captive portal did not
+// auto-open, this QR / URL takes the user to it.
 void ui_portal_client_connected() {
-  M5.Lcd.fillScreen(COLOR_BG);
-  ui_header("CONFIGURE WIFI");
+  ui_onboard_screen(2, "Open the setup page", "http://192.168.4.1", 4,
+                    "Phone connected - scan to open", "192.168.4.1");
+}
 
-  M5.Lcd.setFreeFont(FSS9);
-  M5.Lcd.setTextDatum(TL_DATUM);
-  int x = PAD_EDGE;
-  int y = STATUSBAR_H + PAD_SECTION;
-
-  M5.Lcd.setTextColor(COLOR_SUCCESS);
-  M5.Lcd.drawString("Phone connected.", x, y);
-  y += 26;
-  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("If setup did not open,", x, y);
-  y += 20;
-  M5.Lcd.drawString("scan this or visit:", x, y);
-  y += 26;
-  M5.Lcd.setTextColor(COLOR_TEXT);
-  M5.Lcd.drawString("http://192.168.4.1", x, y);
-
-  // QR to the portal address — onboarding "step 2" code.
-  M5.Lcd.qrcode("http://192.168.4.1", 320 - 110 - PAD_EDGE,
-                STATUSBAR_H + PAD_SECTION, 110, 4);
+// Step 3 — the "Log in with Claude" screen (ADR 007/009). The device is on the
+// home network serving the Stage 2 web portal at `portal_url` (its LAN IP).
+// The QR encodes that LAN URL; re-scanning it after the Claude login is the
+// way back to the page with the paste-the-code field.
+void ui_show_oauth_login(const String &portal_url) {
+  ui_onboard_screen(3, "Log in with Claude", portal_url.c_str(), 4,
+                    portal_url, "Log in, then scan again to paste");
 }
 
 // Bottom-of-screen error banner — shown when the portal rejects a bad key.

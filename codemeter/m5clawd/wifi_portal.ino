@@ -91,11 +91,14 @@ void wifi_portal_oauth_stage() {
   // The portal's "Log in with Claude" block — a read-only custom-HTML field.
   // oauthLoginHtml is a global so its buffer outlives the WiFiManagerParameter.
   oauthLoginHtml =
-      String("<br/><a href='") + authUrl +
-      "' target='_blank' style='display:block;padding:14px;margin-bottom:8px;"
+      String("<br/><b>Step 1.</b> Tap to log in (opens a new tab):"
+             "<a href='") + authUrl +
+      "' target='_blank' style='display:block;padding:14px;margin:8px 0;"
       "background:#DA7756;color:#fff;text-align:center;border-radius:6px;"
       "text-decoration:none;font-weight:bold'>Log in with Claude</a>"
-      "<p>Open the link, approve, then paste the one-time code below.</p>";
+      "<b>Step 2.</b> Claude shows a one-time code &mdash; copy it.<br/>"
+      "<b>Step 3.</b> Return to <i>this</i> tab, paste the code below, "
+      "then tap Save.<br/>";
   new (&oauthLoginField) WiFiManagerParameter(oauthLoginHtml.c_str());
   new (&oauthCodeField) WiFiManagerParameter(
       PARAM_ID_OAUTH_CODE, "One-time code", "", 256,
