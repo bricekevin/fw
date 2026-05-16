@@ -77,7 +77,7 @@ void setup() {
   }
 
   Serial.println("[boot] configured -> station mode");
-  g_apiKey = secrets_get_api_key();
+  g_apiKey = secrets_get_access_token();
 
   // Restore last-known-good usage so the screen shows real numbers (flagged
   // stale) instead of "--" before the first poll of this boot lands.

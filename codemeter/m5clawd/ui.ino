@@ -124,6 +124,7 @@ static void usg_badge(UsageData::Status st, const char **txt, uint16_t *col) {
     case UsageData::API_UNREACHABLE: *txt = "api error";   *col = COLOR_ERROR;   break;
     case UsageData::AUTH_FAILED:     *txt = "auth failed"; *col = COLOR_ERROR;   break;
     case UsageData::RATE_LIMITED:    *txt = "rate limited";*col = COLOR_WARNING; break;
+    case UsageData::REAUTH_REQUIRED: *txt = "re-auth";     *col = COLOR_ERROR;   break;
     default:                         *txt = "connecting";  *col = COLOR_WARNING; break;
   }
 }

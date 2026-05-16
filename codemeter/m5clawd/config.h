@@ -52,11 +52,29 @@
 // Persistent storage (Preferences / NVS)
 // ---------------------------------------------------------------------------
 #define NVS_NAMESPACE "m5clawd"
-#define NVS_KEY_API_KEY "anthropic_key"
 #define NVS_KEY_CONFIGURED "wifi_configured"
 #define NVS_KEY_POLL_INTERVAL "poll_interval_s"
 // Last-known-good UsageData blob, restored on boot (NVS key <= 15 chars).
 #define NVS_KEY_LKG_USAGE "lkg_usage"
+
+// OAuth credential record (ADR 008). The Phase 2 single-string credential is
+// superseded by access token + refresh token + access-token expiry. NVS keys
+// must stay <= 15 chars.
+#define NVS_KEY_OAUTH_AT  "oauth_at"   // access token  (String)
+#define NVS_KEY_OAUTH_RT  "oauth_rt"   // refresh token (String)
+#define NVS_KEY_OAUTH_EXP "oauth_exp"  // access-token expiry, epoch SECONDS (uint32)
+// Legacy pre-Phase-3 key — read only for migration detection. A device holding
+// this and no refresh token cannot refresh and is treated as CRED_LEGACY.
+#define NVS_KEY_API_KEY "anthropic_key"
+
+// What credential the device currently holds — drives the boot/poll path and
+// the "re-onboard required" UI state.
+enum CredState {
+  CRED_NONE,    // no credential stored at all (fresh device)
+  CRED_LEGACY,  // only the pre-Phase-3 single token; no refresh token -> cannot
+                // self-refresh -> re-onboard required
+  CRED_OAUTH,   // access token + refresh token both present -> can self-refresh
+};
 
 // ---------------------------------------------------------------------------
 // Anthropic API
@@ -121,10 +139,24 @@ void   wifi_portal_begin();
 
 // secrets_store.ino
 bool        secrets_is_configured();
-String      secrets_get_api_key();
+CredState   secrets_cred_state();
+String      secrets_get_access_token();
+String      secrets_get_refresh_token();
+uint32_t    secrets_get_expires_at();
+void        secrets_save_tokens(const String &access, const String &refresh,
+                                uint32_t expires_at);
 void        secrets_reset();
 void        saveParamCallback();
 const char *secret_redactor(const String &k);
+
+// oauth.ino
+enum RefreshResult {
+  REFRESH_OK,            // new access token obtained and persisted
+  REFRESH_NO_TOKEN,      // no refresh token stored -> re-onboard required
+  REFRESH_INVALID_GRANT, // endpoint rejected the refresh token -> re-onboard
+  REFRESH_NET_ERROR,     // transient TLS/HTTP failure -> retry with backoff
+};
+RefreshResult oauth_refresh();
 
 // poller.ino
 void        poller_begin();

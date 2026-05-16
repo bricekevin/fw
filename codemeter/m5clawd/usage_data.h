@@ -23,7 +23,9 @@ struct UsageData {
     OK,                      // fresh, valid data
     WIFI_DOWN,               // not connected to WiFi
     API_UNREACHABLE,         // WiFi up, but the Anthropic call failed
-    AUTH_FAILED,             // the API key was rejected
+    AUTH_FAILED,             // the access token was rejected
     RATE_LIMITED,            // Anthropic returned a rate-limit error
+    REAUTH_REQUIRED,         // OAuth refresh failed / no refresh token — the
+                             // user must re-onboard (ADR 007/008)
   } status;
 };
