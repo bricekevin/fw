@@ -35,6 +35,7 @@ run_suite() {
 run_suite parse_headers  parse_headers_test.cpp  ../parse_headers.cpp
 run_suite format_helpers format_helpers_test.cpp ../format_helpers.cpp
 run_suite state_machine  state_machine_test.cpp  ../state_machine.cpp
+run_suite refresh_policy refresh_policy_test.cpp ../refresh_policy.cpp
 
 echo "---"
 if [ "$fails" -ne 0 ]; then
