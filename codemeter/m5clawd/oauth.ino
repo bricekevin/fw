@@ -53,7 +53,10 @@ static String pkce_s256_challenge(const String &verifier) {
 // secrets. Call once when the "Log in with Claude" step begins.
 void oauth_pkce_begin() {
   uint8_t verifier_bytes[32];                  // -> 43-char base64url verifier
-  uint8_t state_bytes[16];                     // -> 22-char base64url state
+  uint8_t state_bytes[32];                     // -> 43-char base64url state
+                                               // (32 bytes — matches the claude
+                                               //  CLI; a shorter state is
+                                               //  rejected as invalid_request)
   esp_fill_random(verifier_bytes, sizeof(verifier_bytes));
   esp_fill_random(state_bytes, sizeof(state_bytes));
 
