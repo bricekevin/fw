@@ -296,33 +296,33 @@ void ui_show_provisioning() {
 
 // Onboarding step 3 — the "Log in with Claude" screen (ADR 007/009). The
 // device is on the home network and serving the Stage 2 web portal at
-// `portal_url` (its LAN IP). The QR is the authorize URL: the user scans it,
-// authorizes on claude.com, then opens `portal_url` and pastes the one-time
-// code. The QR is dense — the authorize URL is ~345 chars, version 14 — so
-// scannability is unverified; tune against a device photo (/5_visual).
-void ui_show_oauth_login(const String &authorize_url, const String &portal_url) {
+// `portal_url` (its LAN IP). The QR encodes that LAN URL — short, low-density,
+// reliably scannable. The phone (still on home WiFi, so it keeps internet)
+// lands on the device-hosted page, which carries the "Log in with Claude"
+// link and the paste-back code field — the user does the login + paste there.
+void ui_show_oauth_login(const String &portal_url) {
   M5.Lcd.fillScreen(COLOR_BG);
   ui_header("LOG IN WITH CLAUDE");
 
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextDatum(TC_DATUM);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("1. Scan QR to log in with Claude", 160, STATUSBAR_H + 4);
+  M5.Lcd.drawString("1. Scan to open the setup page", 160, STATUSBAR_H + 4);
 
-  // QR of the authorize URL. version 14 holds ~395 bytes at ECC-L; if the URL
-  // somehow exceeds that, skip the QR rather than render a corrupt code.
-  const uint8_t qr_version = 14;
-  const int     qr_width   = 146;     // ~2 px/module at version 14
-  if (authorize_url.length() > 0 && authorize_url.length() <= 390) {
-    M5.Lcd.qrcode(authorize_url.c_str(), (320 - qr_width) / 2,
+  // QR of the LAN portal URL (~20 chars). version 4 holds ~50 bytes at ECC-L
+  // with a comfortable module size — matches the step-1 / step-2 QRs.
+  const uint8_t qr_version = 4;
+  const int     qr_width   = 146;
+  if (portal_url.length() > 0) {
+    M5.Lcd.qrcode(portal_url.c_str(), (320 - qr_width) / 2,
                   STATUSBAR_H + 22, qr_width, qr_version);
   }
 
   int y = STATUSBAR_H + 22 + qr_width + 4;          // just below the QR
-  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("2. Open this page, paste the code:", 160, y);
   M5.Lcd.setTextColor(COLOR_PRIMARY);
-  M5.Lcd.drawString(portal_url, 160, y + 16);
+  M5.Lcd.drawString(portal_url, 160, y);
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+  M5.Lcd.drawString("2. Log in with Claude, paste the code", 160, y + 16);
 }
 
 // Onboarding step 2 — a phone has joined the soft-AP. If the captive portal

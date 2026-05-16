@@ -1,9 +1,64 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-05-15 (Session 12)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 12 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~30 min
+**Focus:** `/3_dev` Phase 3 — onboarding QR-flow refinement: fix the
+3rd-screen QR (resolves a Session 11 known issue).
+
+### Completed
+
+- **QR-flow review.** Confirmed the 3-QR onboarding scheme: (1) `ui_show_provisioning`
+  WiFi-join QR for the soft-AP, (2) `ui_portal_client_connected` QR to the
+  `192.168.4.1` captive portal, (3) `ui_show_oauth_login` "Log in with Claude"
+  screen. Screens 1 and 2 were already correct; screen 3 needed the fix below.
+- **QR #3 now encodes the LAN portal URL, not the authorize URL.** Previously
+  `ui_show_oauth_login` rendered the ~345-char Claude authorize URL as a dense
+  version-14 QR (Session 11 flagged it as "may not scan"). It now encodes the
+  short device portal URL (`http://192.168.x.x`, ~20 chars, version 4). The
+  phone scans it, lands on the device-hosted Stage 2 page, and does the
+  "Log in with Claude" + paste-code there — the web page already carries the
+  authorize link (`oauthLoginHtml`) and the `oauthCodeField`.
+- `ui_show_oauth_login()` signature dropped its now-unused `authorize_url`
+  argument (LCD side no longer needs it; the portal page still builds the link
+  from `authUrl`).
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` **clean** — 88% flash
+  (1,157,702 B), 13% RAM.
+- Host tests: **all 5 suites pass** (181 checks) — UI-only change, no pure
+  module touched.
+- **Not flashed** — on-device QR scannability still to be confirmed in Epic 5 /
+  `/5_visual`, but a version-4 QR is well within reliable scan range.
+
+### Files Changed
+
+```text
+m5clawd/ui.ino          — ui_show_oauth_login(): QR = portal URL (was authorize URL)
+m5clawd/wifi_portal.ino — call site updated to the 1-arg signature
+m5clawd/config.h        — prototype updated to drop authorize_url
+```
+
+### Known Issues / Watch
+
+- The Session 11 "dense authorize-URL QR" risk is **resolved** — QR #3 is now
+  low-density. Remaining Session 11 hardware-verification items (web-portal
+  mode, AP->STA transition, `code=true` marker) still stand for Epic 5.
+
+### Next Session Should
+
+1. **Task 3.4** — the "change credential" gesture (re-run Stage 2 only).
+2. Epic 5 hardware verification — flash the device, photograph the 3 QR
+   screens, confirm all three scan.
 
 ---
 

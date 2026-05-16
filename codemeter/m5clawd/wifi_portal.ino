@@ -112,7 +112,7 @@ void wifi_portal_oauth_stage() {
   wifiManager.setMenu(wm_menu);
 
   String portalUrl = String("http://") + WiFi.localIP().toString();
-  ui_show_oauth_login(authUrl, portalUrl);
+  ui_show_oauth_login(portalUrl);
 
   // Non-blocking web portal: pump process() so the LCD/buttons stay live.
   wifiManager.startWebPortal();

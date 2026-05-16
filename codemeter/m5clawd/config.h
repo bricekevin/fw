@@ -227,7 +227,7 @@ void ui_show_status();
 void ui_show_usage(const UsageData &d);
 void ui_update_usage(const UsageData &d);
 void ui_show_provisioning();
-void ui_show_oauth_login(const String &authorize_url, const String &portal_url);
+void ui_show_oauth_login(const String &portal_url);
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_portal_hint(const char *msg);

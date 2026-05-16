@@ -70,7 +70,7 @@
 > authorize-URL + paste-back one-time code. Revise if the ADR picks otherwise.
 
 - [x] **3.1 "Log in with Claude" portal step** (`wifi_portal.ino` / `ui.ino`)
-  - [x] After WiFi is entered, the portal shows the authorize URL (+ a QR) for the user to open on their phone/laptop
+  - [x] After WiFi is entered, the Stage 2 web portal carries the "Log in with Claude" authorize link; the LCD shows a QR of the LAN portal URL so the phone can reach that page (Session 12: QR is the short portal URL, not the dense authorize URL)
   - [x] Generate + hold the PKCE verifier/challenge for the session
 
 - [x] **3.2 Code exchange** (`oauth.ino`)
