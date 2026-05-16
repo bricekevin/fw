@@ -1,9 +1,103 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-16 (Session 17)
+**Last Updated:** 2026-05-16 (Session 18)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 18 — 2026-05-16
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~2 h
+**Focus:** Continuation of the Epic 5.2 hardware session — onboarding UX
+polish while the OAuth token endpoint is rate-limited (see Session 17). All
+device-side; nothing here touches the rate-limited endpoint.
+
+### Completed — onboarding UX pass
+
+- **Uniform onboarding screens + step badge.** New `ui_onboard_screen()`
+  template in `ui.ino` — all three steps share one layout: a thin header band
+  with a "STEP n/3" badge and the action verb, a large centred QR, two detail
+  lines. The QR no longer changes size/position between steps.
+- **Bigger QR** — enlarged 130 -> 168 px (the separate title line was dropped,
+  its space went to the QR) for easier scanning.
+- **Portal restyle.** `setCustomHeadElement(PORTAL_CSS)` injects device-matched
+  CSS into every WiFiManager page — Anthropic-orange accents on the warm-dark
+  background, replacing the library's default blue.
+- **Direct landing.** Stage 2 QR/link now targets `/param` and step 2's QR
+  targets `/wifi`, so a scan lands straight on the needed page instead of the
+  menu's "Setup" button. The Stage 2 portal HTML is now numbered Step 1/2/3 so
+  the paste-the-code field is unambiguous.
+- **Button-C reset during onboarding** — `loop()` (hence `buttons_poll()`) does
+  not run during onboarding, so the C-hold reset was dead on the onboarding
+  screens. Added the gesture to Stage 2's portal loop. (Stage 1 — see below.)
+- **Step 1<->2 flicker fixed.** Phones repeatedly drop/rejoin the no-internet
+  soft-AP; every event redrew the screen. `WiFiEvent()` now draws step 2 once
+  on the first client and never reverts.
+
+### Reverted — non-blocking Stage 1
+
+Stage 1 was briefly converted to a non-blocking portal so the C-reset could be
+serviced there too. Hardware testing showed it **broke WiFi onboarding**:
+`startConfigPortal()` blocking retries a flaky first STA connect internally
+(logs show the first connect often fails then succeeds); the non-blocking loop
+lost that retry and hung "connected but not saved". **Stage 1 reverted to the
+blocking portal.** Consequence: C-reset is not serviced during Steps 1-2 —
+accepted, since nothing is stored yet at that point so there is nothing to wipe.
+
+### STILL BLOCKED — OAuth token endpoint rate limit (carried from Session 17)
+
+The `authorization_code` exchange is still unverified. `platform.claude.com/
+v1/oauth/token` returns HTTP 429 (`rate_limit_error`) to every attempt; the
+authorize flow itself works (a code is issued). No `Retry-After` header, so the
+cooldown length is unknown. **Do not retry / re-probe** — every request feeds
+the limiter. Wait it out (hours, possibly until the next day), then one clean
+onboarding run with a live serial capture.
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` clean — 88% flash (1,159,686 B).
+- Latest build (commit `c79fcee`) is **flashed** but the onboarding walk-
+  through is **not yet user-confirmed** — the session ended before the test.
+- Host tests unchanged (UI-side changes); last full run 181 checks pass.
+
+### Files Changed
+
+```text
+m5clawd/ui.ino          — ui_onboard_screen() template; bigger QR; 3 callers
+m5clawd/wifi_portal.ino — PORTAL_CSS + setCustomHeadElement; /param + /wifi
+                          links; Stage 2 C-reset; WiFiEvent flicker latch;
+                          Stage 1 reverted to blocking
+m5clawd/config.h        — (Session 17) EXCHANGE_RATE_LIMITED
+```
+
+### Known Issues / Watch
+
+| Issue | Severity | Notes |
+|-------|----------|-------|
+| OAuth code exchange unverified | HIGH | Blocked by the 429 rate limit; wait out the cooldown |
+| Onboarding walk-through unconfirmed | MED | `c79fcee` flashed; user has not yet re-tested step-3 C-reset / flicker fix / WiFi-save->reboot |
+| Transient WiFi-down boot (Session 17) | LOW | One boot failed all 3 `station_connect()` attempts; watch |
+| Branch name vs content | LOW | Branch `phase-2-20260515` holds all Phase 3 work — cosmetic |
+
+### Next Session Should
+
+1. **First:** have the user walk onboarding on the flashed `c79fcee` build —
+   confirm the step-1<->2 flicker is gone, WiFi save reboots to step 3, and the
+   step-3 C-hold reset works. Bigger QR / restyled portal eyeball check too.
+2. **Then, once the 429 has cleared:** one clean onboarding run with a serial
+   capture started before the paste — confirm `EXCHANGE_OK` -> tokens persist
+   -> device reboots into the usage screen (completes 5.2 "onboard E2E").
+3. Remainder of 5.2 (refresh across an expiry boundary; rotation back-fill),
+   the 4.3 hardware items, then 5.3 documentation.
+
+### Worktree
+
+Active worktree: `/Users/kevinbrice/GIT/theClaw-phase-2-20260515` on branch
+`phase-2-20260515` (local only, no remote). Not merged — left in place for the
+next session; `cd` straight back in.
 
 ---
 
