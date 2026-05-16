@@ -67,10 +67,12 @@ static const char PORTAL_CSS[] =
     "</style>";
 
 // --- Stage 1 — WiFi credentials over the soft-AP captive portal ------------
-// startConfigPortal() blocks until the portal exits; onWifiSaved() sets the
-// configured flag once WiFi credentials are saved and the connection succeeds,
-// so the loop ends and the device reboots into station mode. No custom field
-// here — the ADR 003 API-key field is gone (superseded by OAuth, ADR 007).
+// Runs the portal non-blocking (setConfigPortalBlocking(false)) so this
+// function owns the loop: process() drives the portal, and — since loop() is
+// not running yet — the button-C reset gesture is handled here too. onWifiSaved()
+// sets the configured flag once credentials are saved and the connection
+// succeeds, ending the loop so the device reboots into station mode. No custom
+// field here — the ADR 003 API-key field is gone (superseded by OAuth, ADR 007).
 void wifi_portal_wifi_stage() {
   wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setAPCallback(onConfigModeCallback);
@@ -79,14 +81,36 @@ void wifi_portal_wifi_stage() {
   wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
   wifiManager.setShowInfoUpdate(false);
   wifiManager.setShowInfoErase(false);
+  wifiManager.setConfigPortalBlocking(false);      // we pump process() below
   std::vector<const char *> wm_menu = {"wifi", "exit"};
   wifiManager.setMenu(wm_menu);
 
   WiFi.onEvent(WiFiEvent);
+  wifiManager.startConfigPortal(ap_ssid().c_str());
 
+  bool resetArmed = false;
   while (!secrets_is_configured()) {
-    wifiManager.startConfigPortal(ap_ssid().c_str());
+    wifiManager.process();
+    M5.update();
+
+    if (M5.BtnC.pressedFor(RESET_HOLD_MS) && !resetArmed) {
+      resetArmed = true;
+      ui_show_reset_confirm();
+    }
+    if (resetArmed && M5.BtnC.pressedFor(RESET_HOLD_MS + 2000)) {
+      Serial.println("[reset] wiping NVS + WiFi credentials (Stage 1)");
+      secrets_reset();
+      delay(300);
+      ESP.restart();
+    }
+    if (resetArmed && M5.BtnC.wasReleased()) {
+      resetArmed = false;                  // released early -> aborted
+      ui_show_provisioning();              // repaint the step-1 screen
+    }
+
+    delay(20);
   }
+  wifiManager.stopConfigPortal();
 
   Serial.println("[portal] WiFi saved -> restarting into station mode");
   delay(500);
@@ -138,10 +162,29 @@ void wifi_portal_oauth_stage() {
   ui_show_oauth_login(portalUrl);
 
   // Non-blocking web portal: pump process() so the LCD/buttons stay live.
+  // The main loop() does not run during onboarding, so the button-C reset
+  // gesture is handled here too — hold 5 s to arm, +2 s to wipe NVS + WiFi.
   wifiManager.startWebPortal();
+  bool resetArmed = false;
   while (!g_oauth_onboarded) {
     wifiManager.process();
     M5.update();
+
+    if (M5.BtnC.pressedFor(RESET_HOLD_MS) && !resetArmed) {
+      resetArmed = true;
+      ui_show_reset_confirm();
+    }
+    if (resetArmed && M5.BtnC.pressedFor(RESET_HOLD_MS + 2000)) {
+      Serial.println("[reset] wiping NVS + WiFi credentials (Stage 2)");
+      secrets_reset();
+      delay(300);
+      ESP.restart();
+    }
+    if (resetArmed && M5.BtnC.wasReleased()) {
+      resetArmed = false;                  // released early -> aborted
+      ui_show_oauth_login(portalUrl);      // repaint the step-3 screen
+    }
+
     delay(20);
   }
   wifiManager.stopWebPortal();
