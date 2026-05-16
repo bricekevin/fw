@@ -60,8 +60,12 @@ PKCE             : S256  (code_challenge / code_challenge_method present in bina
                    the only client proof; no client secret)
 token resp fields: access_token, refresh_token, expires_in, token_type
 refresh grant    : POST https://platform.claude.com/v1/oauth/token
-                   grant_type=refresh_token, refresh_token=.., client_id=..
-refresh rotates? : <pending Task 1.2 — empirical>
+                   content-type: application/json
+                   {"grant_type":"refresh_token","refresh_token":"..",
+                    "client_id":"9d1c250a-e61b-44d9-88ed-5944d1962f5e"}
+                   -> 200 {"access_token","refresh_token","expires_in",
+                           "token_type"}  (response field names confirmed in binary)
+refresh rotates? : ASSUME YES — handle defensively. See Task 1.2 note below.
 ```
 
 **Token-host root CA (affects Epic 2.2 / certs.h):** `platform.claude.com`
@@ -76,14 +80,30 @@ Code-credentials"`, JSON under key `claudeAiOauth`): `accessToken` (108 ch),
 `subscriptionType`, `rateLimitTier`. Note `expiresAt` is **milliseconds**; the
 NVS model in Epic 2.1 stores seconds.
 
-Prove the refresh grant before touching firmware:
+### Task 1.2 — refresh grant proof: DEFERRED to on-device (decided 2026-05-15)
+
+The off-device curl exchange below would have to use the live Keychain refresh
+token; if the grant rotates the refresh token it would invalidate the Mac's
+`claude` login. Decision (Kevin): **do not run it off-device** — the device's
+own first refresh during Epic 5.2 hardware testing is the empirical proof, and
+that is non-disruptive to the dev Mac. The grant shape is taken from the binary
+config + the public client-metadata doc + standard OAuth `refresh_token`
+semantics (recorded in the Task 1.1 block above).
 
 ```bash
-# Off-device refresh exchange — confirms the grant works and shows the shape.
-curl -sS -X POST <token URL> \
+# Reference only — NOT run in the spike. The device performs the equivalent.
+curl -sS -X POST https://platform.claude.com/v1/oauth/token \
   -H 'content-type: application/json' \
-  -d '{"grant_type":"refresh_token","refresh_token":"<rt>","client_id":"<id>"}'
+  -d '{"grant_type":"refresh_token","refresh_token":"<rt>","client_id":"9d1c250a-e61b-44d9-88ed-5944d1962f5e"}'
 ```
+
+**Consequence for the firmware:** rotation is unproven, so Epic 2.2 must treat
+the grant as *possibly* rotating — if the response carries a `refresh_token`,
+persist it atomically *before* the next refresh; if it does not, keep the
+existing one. This defensive handling is correct whether rotation happens or
+not. Epic 5.2 must explicitly observe and record the first real refresh
+(does the response include a new `refresh_token`? does the old one still work?)
+and back-fill the "refresh rotates?" answer here.
 
 Then write the two ADRs (onboarding mechanism; refresh-token storage).
 

@@ -23,10 +23,10 @@
   - [x] Probe the token endpoint host with `openssl s_client` — note whether it needs a root CA beyond the poller's GTS Root R4
   - [x] Record everything in PHASE_IMP.md (these become `config.h` constants)
 
-- [~] **1.2 Prove the refresh grant off-device**
-  - [ ] Script a `refresh_token` grant exchange (curl/python) against the token endpoint; confirm it returns a fresh access token
-  - [ ] Determine whether the refresh token rotates (is a new one returned each time?)
-  - [ ] Capture the exact request + response shape
+- [x] **1.2 Prove the refresh grant off-device** — _resolved by decision: deferred to on-device_
+  - [x] ~~Script a `refresh_token` grant exchange off-device~~ — **deferred** (2026-05-15): the only live refresh token is the Mac's `claude` Keychain credential; a rotating grant would log it out. The device's own first refresh in Task 5.2 is the proof instead. Grant shape recorded in PHASE_IMP.md from the binary config.
+  - [x] Refresh-token rotation: **assume yes, handle defensively** in Epic 2.2; empirical answer back-filled by Task 5.2
+  - [x] Request + response shape captured in PHASE_IMP.md (Task 1.1 findings block)
 
 - [ ] **1.3 ADR — choose the onboarding mechanism**
   - [ ] Compare: authorize-URL + paste-back one-time code (expected) vs one-shot pairing helper vs anything the spike surfaces
@@ -107,6 +107,7 @@
 - [ ] **5.2 Hardware verification**
   - [ ] Onboard end-to-end via the new flow (no raw-token paste)
   - [ ] Observe a real token refresh across an access-token expiry boundary (force a short margin if needed)
+  - [ ] **Carry-over from Task 1.2:** on that first refresh, record whether the response carried a new `refresh_token` (rotation) and whether the old one still worked — back-fill the "refresh rotates?" answer in PHASE_IMP.md
   - [ ] Multi-day unattended run — poll-success ≥ 99%, no manual steps
 - [ ] **5.3 Documentation** — new ADRs (onboarding supersedes 003; refresh-storage revises 005); update `1_PROJECT_OVERVIEW.md` (roadmap renumber, onboarding), `2_ARCHITECTURE.md` (onboarding + a token-refresh component), `README.md` (the real onboarding walkthrough), `CLAUDE.md`, HANDOFF_NOTES
 
