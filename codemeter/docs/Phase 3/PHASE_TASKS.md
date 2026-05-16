@@ -89,9 +89,9 @@
 
 ## Epic 4: Resilience & secrets
 
-- [ ] **4.1 OAuth-specific UI states** (`ui.ino`)
-  - [ ] Distinct "re-onboard required" screen/badge (refresh token revoked / invalid) with instructions
-  - [ ] A transient "refreshing…" indication; ensure stale data stays visible meanwhile
+- [x] **4.1 OAuth-specific UI states** (`ui.ino`)
+  - [x] Distinct "re-onboard required" screen/badge (refresh token revoked / invalid) with instructions — `ui_show_reauth_required()` ("ACTION NEEDED" / "Claude login expired" / hold-B instruction); the display locks to it whenever `g_reauthRequired` is set
+  - [x] A transient "refreshing…" indication; ensure stale data stays visible meanwhile — `ui_show_refreshing()` repaints only the status-bar badge slot before the blocking `oauth_refresh()`; the cards underneath are untouched
 
 - [ ] **4.2 Refresh-token storage — documentation** (scoped by ADR 008)
   - [ ] ADR 008 deferred NVS encryption to Phase 4; this task is **docs only**: write the device-loss revocation guidance into the README and the "re-onboard required" UI copy (the mandatory compensating controls from ADR 008)

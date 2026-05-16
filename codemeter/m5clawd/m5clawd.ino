@@ -175,6 +175,12 @@ static void backlight_toggle() {
 }
 
 static void show_current_screen() {
+  // A dead credential locks the display to the re-onboard prompt — polling has
+  // stopped, so the Usage/Status views would only show frozen data (Task 4.1).
+  if (g_reauthRequired) {
+    ui_show_reauth_required();
+    return;
+  }
   switch (currentScreen) {
     case SCREEN_USAGE:  ui_show_usage(g_usage); break;
     case SCREEN_STATUS: ui_show_status();       break;
@@ -244,6 +250,11 @@ static bool refresh_gate_open() {
 // (refresh succeeded, or failed only transiently so the old access token may
 // still work); false if the credential is dead and re-onboarding is required.
 static bool do_refresh() {
+  // Surface a transient "refreshing" badge — oauth_refresh() blocks for its TLS
+  // round-trip. Only the badge slot is touched, so stale card data stays
+  // visible meanwhile (Task 4.1).
+  if (currentScreen == SCREEN_USAGE) ui_show_refreshing();
+
   switch (oauth_refresh()) {
     case REFRESH_OK:
       g_apiKey       = secrets_get_access_token();
@@ -356,6 +367,13 @@ static void do_poll() {
 
   if (resetConfirmShown || reonboardConfirmShown) return;
 
+  // Credential just died during this poll's refresh — lock to the re-onboard
+  // prompt (Task 4.1); polling is now gated off until the user re-onboards.
+  if (g_reauthRequired) {
+    ui_show_reauth_required();
+    return;
+  }
+
   // First good poll after a failed boot-time connect: surface the Usage view.
   if (outcome == POLL_OK && currentScreen == SCREEN_SPLASH) {
     currentScreen = SCREEN_USAGE;
@@ -387,7 +405,7 @@ void loop() {
   // the Usage screen's "updated Xs ago" stamp. The Usage refresh is a partial
   // redraw, so it never flickers the cards.
   static unsigned long lastScreenRefresh = 0;
-  if (!resetConfirmShown && !reonboardConfirmShown &&
+  if (!resetConfirmShown && !reonboardConfirmShown && !g_reauthRequired &&
       millis() - lastScreenRefresh >= 3000) {
     lastScreenRefresh = millis();
     if (currentScreen == SCREEN_STATUS)     ui_show_status();

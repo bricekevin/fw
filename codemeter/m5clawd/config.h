@@ -232,5 +232,7 @@ void ui_show_oauth_login(const String &portal_url);
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_show_reonboard_confirm();
+void ui_show_reauth_required();
+void ui_show_refreshing();
 void ui_portal_hint(const char *msg);
 void ui_portal_client_connected();

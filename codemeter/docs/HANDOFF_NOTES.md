@@ -1,9 +1,68 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-15 (Session 13)
+**Last Updated:** 2026-05-15 (Session 14)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 14 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~40 min
+**Focus:** `/3_dev` Phase 3 — **Epic 4 Task 4.1**, OAuth-specific UI states
+(13/18 Phase 3 tasks).
+
+### Completed — Task 4.1
+
+- **`ui_show_reauth_required()`** — a dedicated full screen ("ACTION NEEDED" /
+  "Claude login expired" / "Hold button B 5s to log in again"). The display
+  now *locks* to it whenever `g_reauthRequired` is set: `show_current_screen()`
+  short-circuits to it, `do_poll()`'s tail draws it when a refresh kills the
+  credential mid-poll, and the periodic `loop()` refresh is gated off so it is
+  never overpainted. Previously a dead credential showed only a small "re-auth"
+  status-bar badge.
+- **`ui_show_refreshing()`** — a transient indicator drawn at the start of
+  `do_refresh()` before the blocking `oauth_refresh()` TLS call. It repaints
+  *only* the status-bar badge slot (left 130 px) in `COLOR_WARNING`, so the
+  stale Usage cards underneath stay visible; the next `ui_update_usage()`
+  restores the real badge. Guarded to the Usage screen (the only view with a
+  status bar).
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` **clean** — 88% flash
+  (1,158,726 B), 13% RAM.
+- Host tests: **all 5 suites pass** (181 checks) — UI-only change.
+- **Not flashed.** Epic 5 hardware checks: confirm the reauth screen appears
+  on a real refresh-token death, and that "refreshing" is visible during the
+  ~2-4 s refresh window without flickering the cards.
+
+### Files Changed
+
+```text
+m5clawd/ui.ino      — new ui_show_reauth_required() + ui_show_refreshing()
+m5clawd/m5clawd.ino — show_current_screen()/do_poll()/loop() lock to the reauth
+                      screen on g_reauthRequired; do_refresh() draws "refreshing"
+m5clawd/config.h    — prototypes for the two new screens
+```
+
+### Known Issues / Watch
+
+- Boot-time `g_reauthRequired` (no OAuth credential **and** WiFi down) still
+  shows `ui_show_wifi_error()`, not the new reauth screen — intentional (WiFi
+  must be fixed first), but the wifi_error copy still says "Hold C" while the
+  real re-onboard gesture is now B. Reconcile copy in Task 4.2.
+- The reauth screen copy is functional but Task 4.2 (docs) must fold in the
+  ADR 008 device-loss / token-revocation guidance.
+
+### Next Session Should
+
+1. **Task 4.2** — docs only: device-loss revocation guidance into the README +
+   reconcile the re-onboard UI copy (incl. the wifi_error "Hold C" wording).
+2. **Task 4.3** — re-onboard robustness verification.
+3. **Epic 5** — flash + hardware verification backlog (Sessions 11-14).
 
 ---
 

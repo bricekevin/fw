@@ -383,3 +383,32 @@ void ui_show_reonboard_confirm() {
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.drawString("Keep holding B to change login", 160, 138);
 }
+
+// Shown when the OAuth credential is dead — the refresh token was revoked or
+// rejected, so polling has stopped until the user re-onboards (Task 4.1). The
+// fix is the button-B re-onboard gesture (Task 3.4).
+void ui_show_reauth_required() {
+  M5.Lcd.fillScreen(COLOR_BG);
+  ui_header("ACTION NEEDED");
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.setFreeFont(FSS12);
+  M5.Lcd.setTextColor(COLOR_ERROR);
+  M5.Lcd.drawString("Claude login expired", 160, 78);
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.setTextColor(COLOR_TEXT);
+  M5.Lcd.drawString("Usage updates have stopped.", 160, 118);
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+  M5.Lcd.drawString("Hold button B 5s to log in again", 160, 148);
+}
+
+// Transient "refreshing" badge — overwrites only the status-bar badge slot
+// while a blocking token refresh is in flight. The stale card data underneath
+// stays put; the next ui_update_usage() restores the real badge. Meant for the
+// Usage screen (the only one with a status bar); the caller guards on that.
+void ui_show_refreshing() {
+  M5.Lcd.fillRect(0, 0, 130, STATUSBAR_H, COLOR_SURFACE);
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.setTextDatum(ML_DATUM);
+  M5.Lcd.setTextColor(COLOR_WARNING);
+  M5.Lcd.drawString("refreshing", PAD_EDGE, STATUSBAR_H / 2 + 1);
+}
