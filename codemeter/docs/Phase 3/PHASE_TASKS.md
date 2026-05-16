@@ -93,8 +93,8 @@
   - [x] Distinct "re-onboard required" screen/badge (refresh token revoked / invalid) with instructions — `ui_show_reauth_required()` ("ACTION NEEDED" / "Claude login expired" / hold-B instruction); the display locks to it whenever `g_reauthRequired` is set
   - [x] A transient "refreshing…" indication; ensure stale data stays visible meanwhile — `ui_show_refreshing()` repaints only the status-bar badge slot before the blocking `oauth_refresh()`; the cards underneath are untouched
 
-- [ ] **4.2 Refresh-token storage — documentation** (scoped by ADR 008)
-  - [ ] ADR 008 deferred NVS encryption to Phase 4; this task is **docs only**: write the device-loss revocation guidance into the README and the "re-onboard required" UI copy (the mandatory compensating controls from ADR 008)
+- [x] **4.2 Refresh-token storage — documentation** (scoped by ADR 008)
+  - [x] ADR 008 deferred NVS encryption to Phase 4; this task is **docs only**: write the device-loss revocation guidance into the README and the "re-onboard required" UI copy (the mandatory compensating controls from ADR 008) — README "Security & Privacy Notes" rewritten for the OAuth credential record + revocation-as-recovery; `ui_show_reauth_required()` carries a "revoke its access in your Claude account settings" line; `ui_show_wifi_error()` copy corrected ("reconfigure", was a stale "re-onboard")
 
 - [ ] **4.3 Re-onboard robustness**
   - [ ] Verify the device recovers cleanly from: expired access token, revoked refresh token, and a mid-refresh power loss

@@ -301,12 +301,13 @@ arduino-cli monitor -p /dev/cu.usbserial-XXXX -c baudrate=115200
 
 ## Security & Privacy Notes
 
-- The Anthropic API key is stored **in plaintext** in the device's NVS partition. If you lose physical control of the device, rotate the key.
-- Use a **scoped project key** with a low spending limit — see [Anthropic API key best practices](https://docs.anthropic.com/en/api/getting-started#api-keys).
-- The captive-portal AP is **unencrypted** during the ~2-minute onboarding window. Anyone in WiFi range can sniff the form submission. WPA2 on the AP is planned for a hardening phase.
-- The poll request goes over TLS to `api.anthropic.com` — that part is secure.
+- The device authenticates with a **Claude Code OAuth credential** — a short-lived access token plus a long-lived refresh token — stored **in plaintext** in the ESP32's NVS partition. NVS encryption is deliberately deferred; the reasoning and threat model are in [ADR 008](docs/decisions/008-refresh-token-storage.md).
+- **If you lose the device, give it away, or it is stolen — revoke its access in your Claude account settings at [claude.ai](https://claude.ai).** Revocation immediately kills the stored refresh token no matter who physically holds the device, and it is the *real* protection here — not the flash storage. Unlike an API key, an OAuth refresh token cannot be scoped down or spend-limited, so revocation is the control that bounds the damage.
+- **Before handing the device on, wipe it:** long-press button **C** for 5 s to clear all stored credentials (WiFi + OAuth tokens) from NVS.
+- The captive-portal AP is **unencrypted** during the onboarding window. Anyone in WiFi range can sniff the form submission. WPA2 on the AP is planned for a hardening phase.
+- Polls and the OAuth token exchange/refresh all run over TLS — network traffic is secure, and neither token is ever written to the serial log (redacted).
 
-Full threat model: [`docs/2_ARCHITECTURE.md`](docs/2_ARCHITECTURE.md#threat-model-summary), [`docs/decisions/005-secrets-storage-nvs.md`](docs/decisions/005-secrets-storage-nvs.md).
+Full threat model: [`docs/2_ARCHITECTURE.md`](docs/2_ARCHITECTURE.md#threat-model-summary), [ADR 008](docs/decisions/008-refresh-token-storage.md).
 
 ---
 

@@ -61,7 +61,7 @@ void ui_show_wifi_error() {
   M5.Lcd.drawString("WiFi connect failed", 160, 110);
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("Hold button C 5s to re-onboard", 160, 144);
+  M5.Lcd.drawString("Hold button C 5s to reconfigure", 160, 144);
 }
 
 void ui_show_status() {
@@ -386,19 +386,23 @@ void ui_show_reonboard_confirm() {
 
 // Shown when the OAuth credential is dead — the refresh token was revoked or
 // rejected, so polling has stopped until the user re-onboards (Task 4.1). The
-// fix is the button-B re-onboard gesture (Task 3.4).
+// fix is the button-B re-onboard gesture (Task 3.4). The revocation line is the
+// ADR 008 compensating control — surfaced here and in the README.
 void ui_show_reauth_required() {
   M5.Lcd.fillScreen(COLOR_BG);
   ui_header("ACTION NEEDED");
   M5.Lcd.setTextDatum(MC_DATUM);
   M5.Lcd.setFreeFont(FSS12);
   M5.Lcd.setTextColor(COLOR_ERROR);
-  M5.Lcd.drawString("Claude login expired", 160, 78);
+  M5.Lcd.drawString("Claude login expired", 160, 60);
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextColor(COLOR_TEXT);
-  M5.Lcd.drawString("Usage updates have stopped.", 160, 118);
+  M5.Lcd.drawString("Usage updates have stopped.", 160, 96);
+  M5.Lcd.setTextColor(COLOR_PRIMARY);
+  M5.Lcd.drawString("Hold button B 5s to log in again", 160, 124);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("Hold button B 5s to log in again", 160, 148);
+  M5.Lcd.drawString("Lost the device? Revoke its access", 160, 162);
+  M5.Lcd.drawString("in your Claude account settings.", 160, 180);
 }
 
 // Transient "refreshing" badge — overwrites only the status-bar badge slot

@@ -1,9 +1,66 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-15 (Session 14)
+**Last Updated:** 2026-05-15 (Session 15)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 15 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~30 min
+**Focus:** `/3_dev` Phase 3 — **Epic 4 Task 4.2**, the ADR 008 compensating-
+control documentation (docs/copy only — no logic). 14/18 Phase 3 tasks.
+
+### Completed — Task 4.2
+
+- **README "Security & Privacy Notes" rewritten.** Replaced the stale
+  API-key bullets with the OAuth credential reality: access + refresh token in
+  plaintext NVS (encryption deferred -> ADR 008), and **revocation as the
+  headline recovery story** — lose/give away/lose the device -> revoke its
+  access at claude.ai. Added the wipe-before-handoff control (button C) and
+  corrected the TLS/redaction bullet. ADR 008 now linked here and in the
+  threat-model footer (was ADR 005).
+- **`ui_show_reauth_required()` copy** now carries the ADR 008 revocation line
+  ("Lost the device? Revoke its access in your Claude account settings.")
+  alongside the hold-B re-onboard instruction.
+- **`ui_show_wifi_error()` copy fixed** — "Hold button C 5s to **reconfigure**"
+  (was "to re-onboard", which collided with the Task 3.4 button-B re-onboard
+  gesture; C does a full WiFi+OAuth reset, which is the right recovery for a
+  WiFi failure).
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` **clean** — 88% flash
+  (1,158,850 B), 13% RAM.
+- Host tests unaffected (docs + UI copy only) — not re-run.
+- **Not flashed.**
+
+### Files Changed
+
+```text
+README.md           — Security & Privacy Notes rewritten for the OAuth model
+m5clawd/ui.ino      — reauth screen revocation line; wifi_error copy fix
+docs/Phase 3/...    — PHASE_TASKS 4.2 checked off
+```
+
+### Known Issues / Watch
+
+- The README **onboarding walkthrough (Quick Start §1-§5) is still pre-OAuth**
+  — it describes the API-key captive-portal form and has a 2026-05 "being
+  redesigned" banner. Out of Task 4.2 scope (4.2 = security notes + revocation
+  copy only); a full README onboarding rewrite belongs in a `/6_doc` pass once
+  Epic 5 confirms the flow on hardware.
+- The README day-to-day "Buttons" list does not yet mention the button-B
+  re-onboard gesture — fold into that same `/6_doc` pass.
+
+### Next Session Should
+
+1. **Task 4.3** — re-onboard robustness: verify clean recovery from expired
+   access token, revoked refresh token, and mid-refresh power loss.
+2. **Epic 5** — flash + the hardware-verification backlog (Sessions 11-15).
 
 ---
 
