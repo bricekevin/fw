@@ -92,6 +92,30 @@ enum CredState {
 #define ANTHROPIC_POLL_MODEL "claude-haiku-4-5-20251001"
 
 // ---------------------------------------------------------------------------
+// Claude Code OAuth — token refresh (ADR 007; Phase 3 Epic 1 spike)
+// ---------------------------------------------------------------------------
+// Production Claude Code OAuth client. Public client — no secret; PKCE is the
+// client proof. client_id and endpoint established by the Epic 1 spike; see
+// docs/Phase 3/PHASE_IMP.md. These pin third-party OAuth-beta internals — if
+// Anthropic changes them, a refresh fails closed and the device asks the user
+// to re-onboard. Keeping them here makes a change a one-line edit.
+#define OAUTH_CLIENT_ID "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+#define OAUTH_TOKEN_URL "https://platform.claude.com/v1/oauth/token"
+
+// Refresh the access token this many seconds before it expires. Generous (30
+// min) so a flaky network gets many poll-spaced retries before the token
+// actually dies. Epic 5.2 may shrink this to force a refresh during testing.
+#define REFRESH_MARGIN_S 1800
+
+// HTTP/TLS timeout for a single token-refresh call (milliseconds).
+#define REFRESH_HTTP_TIMEOUT_MS 15000
+
+// Backoff after a transient refresh failure: base_s, then exponential
+// (base_s << fails), capped at max_s. Consumed by refresh_retry_delay_s().
+#define REFRESH_BACKOFF_BASE_S 60
+#define REFRESH_BACKOFF_MAX_S 900
+
+// ---------------------------------------------------------------------------
 // UI — colors (RGB565, what M5.Lcd draw calls expect)
 // Source hex values and rationale: docs/3_DESIGN_SYSTEM.md
 // ---------------------------------------------------------------------------
