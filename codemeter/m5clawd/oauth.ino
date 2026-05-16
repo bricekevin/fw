@@ -81,17 +81,21 @@ String oauth_state_token()   { return s_oauth_state; }
 
 // --- Onboarding: authorization-code exchange (Epic 3.2, ADR 007) -----------
 
-// Code-exchange request body — the OAuth `authorization_code` grant. `code`
-// and `verifier` are URL-safe strings and redirect_uri is a fixed literal, so
-// none need JSON escaping (oauth_exchange_code() rejects a code carrying a
-// quote or backslash before this is called).
-static String oauth_exchange_body(const String &code, const String &verifier) {
+// Code-exchange request body — the OAuth `authorization_code` grant. `code`,
+// `verifier` and `state` are URL-safe strings and redirect_uri is a fixed
+// literal, so none need JSON escaping (oauth_exchange_code() rejects a code
+// carrying a quote or backslash before this is called). `state` is echoed back
+// in the grant to match the claude CLI's exchange request.
+static String oauth_exchange_body(const String &code, const String &verifier,
+                                  const String &state) {
   String body = "{\"grant_type\":\"authorization_code\",\"code\":\"";
   body += code;
   body += "\",\"client_id\":\"" OAUTH_CLIENT_ID "\",\"redirect_uri\":\"";
   body += OAUTH_REDIRECT_URI;
   body += "\",\"code_verifier\":\"";
   body += verifier;
+  body += "\",\"state\":\"";
+  body += state;
   body += "\"}";
   return body;
 }
@@ -146,7 +150,8 @@ ExchangeResult oauth_exchange_code(const String &pasted) {
   http.addHeader("content-type", "application/json");
 
   uint32_t t0 = millis();
-  int httpCode = http.POST(oauth_exchange_body(code, s_pkce_verifier));
+  int httpCode = http.POST(oauth_exchange_body(code, s_pkce_verifier,
+                                               s_oauth_state));
   uint32_t elapsed = millis() - t0;
 
   ExchangeResult result;

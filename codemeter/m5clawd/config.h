@@ -107,8 +107,13 @@ enum CredState {
 // (the headless flow; the device is not a registrable redirect target).
 #define OAUTH_AUTHORIZE_URL "https://claude.com/cai/oauth/authorize"
 #define OAUTH_REDIRECT_URI  "https://platform.claude.com/oauth/code/callback"
-// Minimal scopes — the poller only needs inference; profile aids the consent UI.
-#define OAUTH_SCOPE         "user:inference user:profile"
+// OAuth scope. The Claude Code OAuth client accepts exactly two registered
+// scope sets — "user:inference" (inference only) or the full
+// "user:profile user:inference user:sessions:claude_code user:mcp_servers".
+// M5Clawd only polls, so it requests the inference-only set; any other
+// combination (e.g. "user:inference user:profile") is rejected by the
+// authorize endpoint. Verified against the claude CLI's buildAuthUrl.
+#define OAUTH_SCOPE         "user:inference"
 
 // WiFiManagerParameter id for the Epic 3 paste-back one-time code field. The
 // "Log in with Claude" block is a custom-HTML parameter and needs no id.
