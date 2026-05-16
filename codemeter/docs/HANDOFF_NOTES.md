@@ -7,6 +7,39 @@
 
 ---
 
+## Session 8 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~30 min
+**Focus:** Post-pivot wrap-up — `/6_doc` (reconcile docs with the OAuth pivot) then `/2_pm` (plan the OAuth phase).
+
+### Completed
+
+- **`/6_doc`** — corrected the docs the OAuth pivot made wrong. `2_ARCHITECTURE.md` (API Design + Security now describe OAuth Bearer auth; poll-flow header step), `PHASE_PRD.md` Phase 2 (revision banner), `CLAUDE.md` (auth-model note for agents; also fixed the now-false "cannot flash a device" claim), `README.md` + `1_PROJECT_OVERVIEW.md` (onboarding-redesign callouts). ADRs 003/005 deliberately left — the Phase 3 ADRs supersede them. Commit `a5bd55c`.
+- **`/2_pm`** — planned **Phase 3: Claude Code OAuth onboarding + token refresh** (`docs/Phase 3/` — PRD, TASKS, IMP, DEPENDENCIES). 5 epics / 18 tasks: a front-loaded OAuth research spike + ADRs, the NVS credential store + refresh client, the onboarding flow, resilience/secrets, testing. Commit `3831e4b`.
+
+### Decisions made
+
+- **Phase renumber:** OAuth onboarding is MVP-blocking (device dies in ~a day without refresh); the old "Phase 3 Polish" is not. So OAuth takes the Phase 3 slot and Polish becomes Phase 4. Recorded in the Phase 3 docs; `1_PROJECT_OVERVIEW.md`'s roadmap section still needs that renumber applied (left for Phase 3's Task 5.3).
+- **Phase 3 is research-gated:** Epic 1 is a spike (OAuth client_id / endpoints / refresh-grant, proven off-device) before any firmware — mirroring how Phase 2 front-loaded the TLS risk. If no viable standalone OAuth flow exists, the standalone-device premise itself needs a rethink.
+- **Doc strategy:** corrected load-bearing technical docs now; did not rewrite the onboarding walkthroughs (README/overview) since Phase 3 redefines onboarding — flagged them instead, to avoid double-rewrite churn.
+
+### Files Changed
+
+```text
+docs/2_ARCHITECTURE.md, CLAUDE.md, README.md, docs/1_PROJECT_OVERVIEW.md,
+docs/Phase 2/PHASE_PRD.md   — OAuth-pivot doc reconciliation
+docs/Phase 3/*              — new: Phase 3 plan (PRD/TASKS/IMP/DEPENDENCIES)
+```
+
+### Next Session Should
+
+1. Start Phase 3 with `/3_dev` — **Epic 1, the OAuth spike** (establish Claude Code's OAuth parameters; prove the refresh grant off-device; write the two ADRs). Do not write firmware against OAuth internals until the spike lands.
+2. Branch `phase-2-20260515` holds all of Phase 2 + the Phase 3 plan (~16 commits), still unpushed — push / open a PR when ready.
+3. Carry-overs: the leaked OAuth tokens should be rotated; `station_connect()` hardening is folded into Phase 3 Task 3.3.
+
+---
+
 ## Session 7 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
