@@ -51,6 +51,21 @@ void onConfigModeCallback(WiFiManager *myWiFiManager) {
   ui_show_provisioning();
 }
 
+// Injected into every WiFiManager page's <head> so the portal matches the
+// device — Anthropic-orange accents on the warm-dark background, replacing the
+// library's default blue. Loaded after the library's own stylesheet, so these
+// rules win the cascade.
+static const char PORTAL_CSS[] =
+    "<style>"
+    "body.invert,body.invert a,body.invert h1{background:#1A1815;color:#fff}"
+    "h1,h3{color:#DA7756}"
+    "button,input[type='button'],input[type='submit']"
+    "{background-color:#DA7756;border-radius:.4rem}"
+    "input{border-radius:.4rem}"
+    "a:hover{color:#DA7756}"
+    ".msg.P{border-left-color:#DA7756}.msg.P h4{color:#DA7756}"
+    "</style>";
+
 // --- Stage 1 — WiFi credentials over the soft-AP captive portal ------------
 // startConfigPortal() blocks until the portal exits; onWifiSaved() sets the
 // configured flag once WiFi credentials are saved and the connection succeeds,
@@ -61,6 +76,7 @@ void wifi_portal_wifi_stage() {
   wifiManager.setAPCallback(onConfigModeCallback);
   wifiManager.setTitle("M5CLAWD SETUP");
   wifiManager.setClass("invert");                  // dark theme
+  wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
   wifiManager.setShowInfoUpdate(false);
   wifiManager.setShowInfoErase(false);
   std::vector<const char *> wm_menu = {"wifi", "exit"};
@@ -109,12 +125,16 @@ void wifi_portal_oauth_stage() {
   wifiManager.setSaveParamsCallback(oauthCodeSaveCallback);
   wifiManager.setTitle("M5CLAWD - LOG IN");
   wifiManager.setClass("invert");
+  wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
   wifiManager.setShowInfoUpdate(false);
   wifiManager.setShowInfoErase(false);
   std::vector<const char *> wm_menu = {"param", "exit"};
   wifiManager.setMenu(wm_menu);
 
-  String portalUrl = String("http://") + WiFi.localIP().toString();
+  // /param so the QR / link lands straight on the login + paste page,
+  // skipping the WiFiManager menu's "Setup" click.
+  String portalUrl =
+      String("http://") + WiFi.localIP().toString() + "/param";
   ui_show_oauth_login(portalUrl);
 
   // Non-blocking web portal: pump process() so the LCD/buttons stay live.

@@ -266,39 +266,34 @@ void ui_update_usage(const UsageData &d) {
 }
 
 // --- Onboarding screens ----------------------------------------------------
-// The three onboarding steps share one template so the layout never shifts
-// between steps: a header with a "STEP n/3" badge, an action title, a centred
-// fixed-size QR, and two instruction lines. Uniform placement means the QR
-// stays put step-to-step and the badge always shows where the user is.
+// The three onboarding steps share one template: a thin header band carrying a
+// "STEP n/3" badge and the action verb, then a large centred QR, then two
+// detail lines. The QR is sized to dominate the panel and sits in the same
+// place on every step, so it stays big and easy to scan throughout.
 static void ui_onboard_screen(int step, const char *action, const char *qr,
                               uint8_t qr_version, const String &line1,
                               const String &line2) {
   M5.Lcd.fillScreen(COLOR_BG);
 
-  // Header — app name left, "STEP n/3" badge right.
-  M5.Lcd.fillRect(0, 0, 320, STATUSBAR_H, COLOR_SURFACE);
+  // Header band — "STEP n/3" (accent) on the left, action verb (dim) right.
+  const int HDR = 22;
+  M5.Lcd.fillRect(0, 0, 320, HDR, COLOR_SURFACE);
   M5.Lcd.setFreeFont(FSS9);
-  M5.Lcd.setTextColor(COLOR_PRIMARY);
-  M5.Lcd.setTextDatum(ML_DATUM);
-  M5.Lcd.drawString("M5CLAWD SETUP", PAD_EDGE, STATUSBAR_H / 2 + 1);
   char badge[12];
   snprintf(badge, sizeof(badge), "STEP %d/3", step);
+  M5.Lcd.setTextColor(COLOR_PRIMARY);
+  M5.Lcd.setTextDatum(ML_DATUM);
+  M5.Lcd.drawString(badge, PAD_EDGE, HDR / 2);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
   M5.Lcd.setTextDatum(MR_DATUM);
-  M5.Lcd.drawString(badge, 320 - PAD_EDGE, STATUSBAR_H / 2 + 1);
+  M5.Lcd.drawString(action, 320 - PAD_EDGE, HDR / 2);
 
-  // Action title.
-  M5.Lcd.setFreeFont(FSS12);
-  M5.Lcd.setTextColor(COLOR_TEXT);
-  M5.Lcd.setTextDatum(TC_DATUM);
-  M5.Lcd.drawString(action, 160, STATUSBAR_H + 6);
+  // Large centred QR — fills most of the panel for easy scanning.
+  const int qr_w = 168;
+  M5.Lcd.qrcode(qr, (320 - qr_w) / 2, HDR + 8, qr_w, qr_version);
 
-  // Centred QR — identical size and position on every step.
-  const int qr_w = 130;
-  M5.Lcd.qrcode(qr, (320 - qr_w) / 2, STATUSBAR_H + 30, qr_w, qr_version);
-
-  // Two instruction lines below the QR.
-  int y = STATUSBAR_H + 30 + qr_w + 8;
+  // Two detail lines below the QR.
+  int y = HDR + 8 + qr_w + 6;
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextDatum(TC_DATUM);
   M5.Lcd.setTextColor(COLOR_TEXT);
@@ -312,24 +307,24 @@ static void ui_onboard_screen(int step, const char *action, const char *qr,
 void ui_show_provisioning() {
   String ssid = ap_ssid();
   String qr = "WIFI:T:nopass;S:" + ssid + ";;";
-  ui_onboard_screen(1, "Join this WiFi", qr.c_str(), 4,
+  ui_onboard_screen(1, "JOIN WIFI", qr.c_str(), 4,
                     ssid, "or open  192.168.4.1");
 }
 
-// Step 2 — a phone has joined the soft-AP. If the captive portal did not
-// auto-open, this QR / URL takes the user to it.
+// Step 2 — a phone has joined the soft-AP. The QR lands straight on the WiFi
+// config page (no menu click); the captive portal usually opens it anyway.
 void ui_portal_client_connected() {
-  ui_onboard_screen(2, "Open the setup page", "http://192.168.4.1", 4,
-                    "Phone connected - scan to open", "192.168.4.1");
+  ui_onboard_screen(2, "OPEN SETUP", "http://192.168.4.1/wifi", 4,
+                    "192.168.4.1", "open if setup did not pop up");
 }
 
 // Step 3 — the "Log in with Claude" screen (ADR 007/009). The device is on the
-// home network serving the Stage 2 web portal at `portal_url` (its LAN IP).
-// The QR encodes that LAN URL; re-scanning it after the Claude login is the
-// way back to the page with the paste-the-code field.
+// home network serving the Stage 2 web portal; `portal_url` is the LAN IP plus
+// /param, so the QR lands straight on the login + paste page. Re-scanning it
+// after the Claude login is the way back to the paste-the-code field.
 void ui_show_oauth_login(const String &portal_url) {
-  ui_onboard_screen(3, "Log in with Claude", portal_url.c_str(), 4,
-                    portal_url, "Log in, then scan again to paste");
+  ui_onboard_screen(3, "LOG IN", portal_url.c_str(), 4,
+                    portal_url, "log in, then scan again to paste");
 }
 
 // Bottom-of-screen error banner — shown when the portal rejects a bad key.
