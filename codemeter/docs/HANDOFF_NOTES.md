@@ -7,6 +7,80 @@
 
 ---
 
+## Session 11 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1 h
+**Focus:** `/3_dev` Phase 3 — **Epic 3 onboarding**, the OAuth machinery: PKCE
+generation (Task 3.1) and the authorization-code exchange (Task 3.2 capability).
+
+### Completed
+
+- **Task 3.1 — PKCE + authorize URL.** New pure module `oauth_pkce.{h,cpp}`:
+  base64url, percent-encoding, the authorize-URL builder — host-tested
+  (`test/oauth_pkce_test.cpp`, 58 checks, wired into `run.sh`).
+  `oauth.ino` gained `oauth_pkce_begin()` — mints a per-session
+  `code_verifier`/`state` via the hardware RNG (`esp_fill_random`) and derives
+  the S256 `code_challenge` with mbedtls. `ui.ino` gained `ui_show_oauth_login()`
+  — the "Log in with Claude" screen with an authorize-URL QR.
+- **Task 3.2 — code exchange (capability).** `oauth_exchange_code()` in
+  `oauth.ino`: POSTs the `authorization_code` grant and persists the returned
+  access + refresh tokens. Accepts `code` or `code#state`, state-checks, maps
+  4xx -> `EXCHANGE_BAD_CODE` / 5xx+transport -> `EXCHANGE_NET_ERROR`.
+
+### Verification
+
+- Host tests: **all 5 suites pass** (181 checks; new `oauth_pkce` = 58).
+- Firmware: `arduino-cli compile --profile m5clawd` **clean** — 87% flash
+  (1,148,946 / 1,310,720 B), 13% RAM. Not flashed (Phase 3 flashes at Epic 5).
+
+### Files Changed
+
+```text
+m5clawd/oauth_pkce.h, oauth_pkce.cpp     — new pure module (PKCE + authorize URL)
+m5clawd/test/oauth_pkce_test.cpp, run.sh — new test suite
+m5clawd/oauth.ino                        — oauth_pkce_begin() + oauth_exchange_code()
+m5clawd/ui.ino                           — ui_show_oauth_login() screen
+m5clawd/config.h                         — authorize endpoint/redirect/scope,
+                                           ExchangeResult, portal param ids, prototypes
+```
+
+### Known Issues / Watch
+
+- **ADR 007 vs. soft-AP internet — needs a decision before Task 3.3.** ADR 007
+  step 2 says concurrent AP+STA "avoids forcing the user to switch their phone
+  between networks mid-flow." But an ESP32 soft-AP does **not** NAT/route the
+  STA uplink to AP clients — a phone joined to `M5Clawd-XXXXXX` has no internet,
+  so it cannot open `claude.com` to authorize. The realistic flow is either
+  (a) the user switches their phone off the AP to authorize, then back to paste
+  the code, or (b) a second device (laptop) scans the LCD QR. The paste-back
+  step still works; the ADR just under-weights the network-switch friction.
+  **Task 3.3's onboarding UX should be settled with the user first** — and if
+  the resolution departs from ADR 007, write a follow-up ADR.
+- **Flash at 87%** — unchanged; still watch the 1.31 MB ceiling as Epic 3 grows.
+- The on-LCD authorize-URL QR is dense (~345-char URL -> version 14). Rendered
+  best-effort with a length guard; scannability is unverified — confirm in
+  `/5_visual` / Epic 5.
+
+### Next Session Should
+
+1. **Task 3.3 — the two-stage portal restructure** (and with it 3.2's remaining
+   portal-field + on-screen-hint subtasks): stage WiFi creds first, then the
+   OAuth step; add the paste-back `WiFiManagerParameter`; rewrite
+   `saveParamCallback` (the Phase-2 API-key field is removed per ADR 007);
+   fold in the `station_connect()` hardening. **Resolve the ADR-007 soft-AP
+   question above before designing this.**
+2. Then Task 3.4 (change-credential gesture), Epic 4, Epic 5.
+3. Carry-over still open: rotate the Session-7-leaked OAuth tokens.
+
+### Notes
+
+- 3.1/3.2 follow the project's own 2.2/2.3 pattern: land the method-independent
+  capability first, wire it into the flow second. `oauth_exchange_code()` and
+  `oauth_pkce_begin()` are not yet called by any flow — Task 3.3 wires them.
+
+---
+
 ## Session 10 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
