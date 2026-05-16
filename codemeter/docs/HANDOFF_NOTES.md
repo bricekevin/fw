@@ -7,6 +7,80 @@
 
 ---
 
+## Session 10 — 2026-05-15
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** ~1 h
+**Focus:** `/3_dev` Phase 3 — **Epic 2, the credential store + token-refresh firmware** (method-independent; built ahead of the Epic 3 onboarding flow).
+
+### Completed — Epic 2 done (8/18 Phase 3 tasks)
+
+- **Task 2.4 — `refresh_policy.{h,cpp}`** — pure, Arduino-header-free:
+  `should_refresh(expiresAt, now, margin)` and `refresh_retry_delay_s()`. Host
+  unit tests added (`test/refresh_policy_test.cpp`, 23 checks, wired into
+  `run.sh`).
+- **Task 2.1 — OAuth credential model** — `secrets_store.ino` + `config.h`: the
+  single `anthropic_key` string is superseded by `oauth_at` / `oauth_rt` /
+  `oauth_exp` in NVS. A `CredState` enum (NONE / LEGACY / OAUTH) drives the
+  re-onboard decision — a device holding only the legacy token is `CRED_LEGACY`.
+  New `UsageData::REAUTH_REQUIRED` status + status-bar badge.
+- **Task 2.2 — `oauth.ino` refresh client** — `oauth_refresh()` POSTs the
+  refresh grant to `platform.claude.com` over TLS, parses the new credential,
+  handles refresh-token rotation defensively, persists it. **ISRG Root X1**
+  bundled in `certs.h` (probed + verified — the token host's root, distinct
+  from the poller's GTS Root R4).
+- **Task 2.3 — refresh scheduling** — `m5clawd.ino`: proactive refresh when the
+  access token nears expiry, refresh-and-retry once on a poll 401, transient
+  failures back off, a definitive failure -> `g_reauthRequired` / re-onboard
+  state with polling halted.
+
+### Verification
+
+- Host tests: **all 4 suites pass** (123 checks — parse_headers 50, format_helpers
+  22, state_machine 28, refresh_policy 23).
+- Firmware: `arduino-cli compile --profile m5clawd` **clean** — 87% flash
+  (1,147,566 / 1,310,720 B), 13% RAM. No device flash this session (Phase 3 is
+  not flashed until Epic 5; the dev device stays on the Phase 2 build).
+
+### Files Changed
+
+```text
+m5clawd/refresh_policy.h, refresh_policy.cpp   — new pure module
+m5clawd/test/refresh_policy_test.cpp, run.sh   — new test suite
+m5clawd/oauth.ino                              — new refresh-client tab
+m5clawd/certs.h                                — + ISRG Root X1
+m5clawd/config.h                               — OAuth consts, NVS keys, CredState,
+                                                 RefreshResult, prototypes
+m5clawd/secrets_store.ino                      — OAuth credential accessors
+m5clawd/usage_data.h                           — + REAUTH_REQUIRED status
+m5clawd/m5clawd.ino                            — refresh scheduling in the poll loop
+m5clawd/ui.ino                                 — re-auth status-bar badge
+```
+
+### Known Issues / Watch
+
+- **Flash at 87%.** Epic 3 adds onboarding + QR code; keep an eye on the
+  1.31 MB ceiling — a partition-scheme change may be needed if it gets tight.
+- The `claude` CLI binary build that yielded the OAuth params is 2.1.143; the
+  client_id is pinned in `config.h` and may change if Anthropic rotates it.
+
+### Next Session Should
+
+1. Start **Epic 3** (onboarding flow) — built to ADR 007: WiFi first, then the
+   "Log in with Claude" authorize-URL + paste-back code step over concurrent
+   AP+STA. Tasks 3.1-3.4. This replaces the Phase-2 API-key portal field.
+2. Carry-over still open: rotate the Session-7-leaked OAuth tokens.
+
+### Notes
+
+- Epic 2 was built before Epic 3 deliberately (it is onboarding-method-
+  independent). After Epic 2 a real device with only the legacy `anthropic_key`
+  boots to "re-onboard required" — expected; Epic 3 supplies the new onboarding.
+- `refresh_token` rotation is still unproven (Task 1.2 deferred) — the firmware
+  handles it defensively; Epic 5.2 records the real behaviour.
+
+---
+
 ## Session 9 — 2026-05-15
 
 **Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)

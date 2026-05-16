@@ -1,6 +1,6 @@
 # Phase 3 - OAuth Onboarding + Token Refresh Tasks
 
-**Status:** 4/18 — Epic 1 spike complete; Epic 2 next
+**Status:** 8/18 — Epics 1-2 complete; Epic 3 (onboarding) next
 **Updated:** 2026-05-15
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for spike commands and
@@ -43,24 +43,24 @@
 
 > Method-independent — needed whatever Epic 1 picks for onboarding.
 
-- [ ] **2.1 Credential model in NVS** (`secrets_store.ino` / `config.h`)
-  - [ ] Store access token + refresh token + `expiresAt` (supersede the single `anthropic_key` string)
-  - [ ] Migration: a device holding only an old single token degrades to "re-onboard required"
-  - [ ] `secret_redactor()` covers both token types; neither ever logged
+- [x] **2.1 Credential model in NVS** (`secrets_store.ino` / `config.h`)
+  - [x] Store access token + refresh token + `expiresAt` (`oauth_at`/`oauth_rt`/`oauth_exp`; supersedes the single `anthropic_key` string)
+  - [x] Migration: `CredState` — a device holding only the legacy single token is CRED_LEGACY -> boots to "re-onboard required"
+  - [x] `secret_redactor()` covers both token types (shared `sk-ant-` prefix); neither ever logged
 
-- [ ] **2.2 Refresh client** (`oauth.ino` — new tab)
-  - [ ] `oauth_refresh()` — stack-scoped `WiFiClientSecure` + `HTTPClient` POST of the refresh grant to the token endpoint (heap discipline as in `poller.ino`)
-  - [ ] Bundle the token-endpoint root CA in `certs.h` if different from the poller's
-  - [ ] Parse the new access token + expiry (+ rotated refresh token); persist atomically via Epic 2.1
+- [x] **2.2 Refresh client** (`oauth.ino` — new tab)
+  - [x] `oauth_refresh()` — stack-scoped `WiFiClientSecure` + `HTTPClient` POST of the refresh grant to the token endpoint (heap discipline as in `poller.ino`)
+  - [x] Bundled ISRG Root X1 in `certs.h` — the token host's root, distinct from the poller's GTS Root R4
+  - [x] Parse the new access token + expiry (+ rotated refresh token); persist via `secrets_save_tokens()`
 
-- [ ] **2.3 Refresh scheduling** (`m5clawd.ino`)
-  - [ ] Refresh proactively when the access token is within a margin of expiry; also refresh-and-retry once on a poll `401`
-  - [ ] Refresh failure -> `AUTH_FAILED` / a new "re-onboard required" status; bounded backoff, no refresh storm
-  - [ ] Wire into the existing poll loop / state machine without blocking buttons
+- [x] **2.3 Refresh scheduling** (`m5clawd.ino`)
+  - [x] Refresh proactively when the access token is within `REFRESH_MARGIN_S` of expiry; refresh-and-retry once on a poll `401`
+  - [x] Definitive refresh failure -> `g_reauthRequired` / `REAUTH_REQUIRED` status; transient failure -> bounded backoff, no refresh storm
+  - [x] Wired into the existing poll loop / state machine; no busy-wait, buttons stay responsive
 
-- [ ] **2.4 Pure-logic refresh-decision module** (`refresh_policy.{h,cpp}` + tests)
-  - [ ] `should_refresh(expiresAt, now, margin)` and the failure/backoff decision — Arduino-header-free
-  - [ ] Host unit tests in `m5clawd/test/`
+- [x] **2.4 Pure-logic refresh-decision module** (`refresh_policy.{h,cpp}` + tests)
+  - [x] `should_refresh(expiresAt, now, margin)` and `refresh_retry_delay_s()` — Arduino-header-free
+  - [x] Host unit tests in `m5clawd/test/` (23 checks, wired into `run.sh`)
 
 ---
 
