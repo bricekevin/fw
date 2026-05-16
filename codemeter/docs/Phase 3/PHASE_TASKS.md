@@ -1,6 +1,6 @@
 # Phase 3 - OAuth Onboarding + Token Refresh Tasks
 
-**Status:** 0/18 — planning
+**Status:** 1/18 — Epic 1 spike in progress
 **Updated:** 2026-05-15
 
 > See PHASE_PRD.md for requirements and PHASE_IMP.md for spike commands and
@@ -18,12 +18,12 @@
 > Front-loaded risk epic, mirroring Phase 2's "TLS first" sequencing. Output is
 > knowledge + two ADRs, not firmware.
 
-- [ ] **1.1 Establish Claude Code's OAuth parameters**
-  - [ ] Find the client_id, authorize endpoint, token endpoint, scopes, and PKCE method (sources: `claude` CLI login behaviour, Anthropic OAuth docs, the credential blob, network observation)
-  - [ ] Probe the token endpoint host with `openssl s_client` — note whether it needs a root CA beyond the poller's GTS Root R4
-  - [ ] Record everything in PHASE_IMP.md (these become `config.h` constants)
+- [x] **1.1 Establish Claude Code's OAuth parameters**
+  - [x] Find the client_id, authorize endpoint, token endpoint, scopes, and PKCE method (sources: `claude` CLI login behaviour, Anthropic OAuth docs, the credential blob, network observation)
+  - [x] Probe the token endpoint host with `openssl s_client` — note whether it needs a root CA beyond the poller's GTS Root R4
+  - [x] Record everything in PHASE_IMP.md (these become `config.h` constants)
 
-- [ ] **1.2 Prove the refresh grant off-device**
+- [~] **1.2 Prove the refresh grant off-device**
   - [ ] Script a `refresh_token` grant exchange (curl/python) against the token endpoint; confirm it returns a fresh access token
   - [ ] Determine whether the refresh token rotates (is a new one returned each time?)
   - [ ] Capture the exact request + response shape

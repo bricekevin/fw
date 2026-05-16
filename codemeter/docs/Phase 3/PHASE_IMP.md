@@ -26,20 +26,55 @@ security find-generic-password -s "Claude Code-credentials" -w \
       print({k:(len(v) if isinstance(v,str) else v) for k,v in d.items()})"
 ```
 
-To find the OAuth parameters: observe how `claude` logs in (it offers a
-headless "open this URL, paste the code back" path when it can't open a
-browser — that path is the model for the device's onboarding), and check
-Anthropic's OAuth documentation. Record findings here:
+### Task 1.1 findings — Claude Code OAuth parameters (recorded 2026-05-15)
+
+Sources: the production OAuth config object inside the `claude` CLI binary
+(`~/.local/share/claude/versions/2.1.143`, Mach-O — extracted with `strings` /
+`grep -a`); the public client-metadata document; the local Keychain credential
+*structure* (field names + lengths only, no secret values); and an `openssl
+s_client` probe of the token host.
 
 ```text
-client_id        : <fill in from spike>
-authorize URL    : <fill in>
-token URL        : <fill in>
-scopes           : user:inference, ... (from the credential blob)
-PKCE             : S256 (confirm)
-refresh grant    : POST <token URL>  grant_type=refresh_token&refresh_token=..&client_id=..
-refresh rotates? : <yes/no — from Task 1.2>
+client_id        : 9d1c250a-e61b-44d9-88ed-5944d1962f5e
+                   (production UUID client. The binary also carries a second
+                    config block, CLIENT_ID 22422756-60c9-4084-8eb7-27705fd5cf9a
+                    with OAUTH_FILE_SUFFIX "-local-oauth" + localhost MCP proxy —
+                    that is the dev/local build config; ignore it.)
+authorize URL    : https://claude.com/cai/oauth/authorize        (CLAUDE_AI — subscription)
+                   https://platform.claude.com/oauth/authorize   (CONSOLE — API account)
+                   -> use the CLAUDE_AI one: M5Clawd reads Claude Code subscription
+                      ("unified") rate limits, which are the claude.ai account's.
+token URL        : https://platform.claude.com/v1/oauth/token
+manual redirect  : https://platform.claude.com/oauth/code/callback
+                   (MANUAL_REDIRECT_URL — the headless "paste the code back" path;
+                    after auth claude.ai shows the code at
+                    https://platform.claude.com/oauth/code/success?app=claude-code)
+loopback redirect: http://localhost/callback , http://127.0.0.1/callback
+                   (from the client-metadata doc — the browser-on-same-machine path;
+                    NOT usable by a headless device — see Task 1.3 ADR)
+scopes           : user:inference user:profile user:file_upload user:mcp_servers
+                   user:sessions:claude_code   (from this account's credential blob;
+                   M5Clawd only needs user:inference [+ user:profile])
+PKCE             : S256  (code_challenge / code_challenge_method present in binary;
+                   token_endpoint_auth_method = "none" -> public client, PKCE is
+                   the only client proof; no client secret)
+token resp fields: access_token, refresh_token, expires_in, token_type
+refresh grant    : POST https://platform.claude.com/v1/oauth/token
+                   grant_type=refresh_token, refresh_token=.., client_id=..
+refresh rotates? : <pending Task 1.2 — empirical>
 ```
+
+**Token-host root CA (affects Epic 2.2 / certs.h):** `platform.claude.com`
+chains `Let's Encrypt E7` -> **ISRG Root X1**. This is a *different* root from
+the poller's `api.anthropic.com` (GTS Root R4) — Epic 2.2 must bundle ISRG Root
+X1 as a second pinned CA. (Caveat: Let's Encrypt leaf certs rotate every ~90
+days; pin the *root*, ISRG Root X1, not the leaf or the E7 intermediate.)
+
+**Credential structure** (`security find-generic-password -s "Claude
+Code-credentials"`, JSON under key `claudeAiOauth`): `accessToken` (108 ch),
+`refreshToken` (108 ch), `expiresAt` (ms epoch), `scopes` (array),
+`subscriptionType`, `rateLimitTier`. Note `expiresAt` is **milliseconds**; the
+NVS model in Epic 2.1 stores seconds.
 
 Prove the refresh grant before touching firmware:
 
