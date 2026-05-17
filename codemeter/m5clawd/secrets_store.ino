@@ -47,9 +47,24 @@ CredState secrets_cred_state() {
   return CRED_NONE;
 }
 
+// A Claude token (sk-ant-...) is base64url-ish and never contains whitespace.
+// A copy-paste can smuggle in stray spaces or newlines — e.g. when the token
+// is copied from a line-wrapped terminal display. Strip every whitespace
+// character so the stored/used credential is exactly the token.
+static String token_clean(const String &raw) {
+  String out;
+  out.reserve(raw.length());
+  for (size_t i = 0; i < raw.length(); i++) {
+    char c = raw[i];
+    if (c != ' ' && c != '\t' && c != '\r' && c != '\n') out += c;
+  }
+  return out;
+}
+
 // The OAuth access token used as the poller's Bearer credential. Falls back to
-// the legacy `anthropic_key` for a not-yet-migrated device (whose poll will
-// 401 once that token expires, steering it to re-onboard).
+// the legacy `anthropic_key` for a not-yet-migrated device. Whitespace is
+// stripped on read too, so a credential stored before token_clean() existed
+// (or otherwise smudged) is still used correctly.
 String secrets_get_access_token() {
   preferences.begin(NVS_NAMESPACE, true);
   String token = preferences.getString(NVS_KEY_OAUTH_AT, "");
@@ -57,7 +72,7 @@ String secrets_get_access_token() {
     token = preferences.getString(NVS_KEY_API_KEY, "");   // legacy fallback
   }
   preferences.end();
-  return token;
+  return token_clean(token);
 }
 
 // The refresh token, or "" if none is stored.
@@ -82,10 +97,12 @@ uint32_t secrets_get_expires_at() {
 // re-onboardable state, never a wedged one (see Epic 4.3).
 void secrets_save_tokens(const String &access, const String &refresh,
                          uint32_t expires_at) {
+  String cleanAccess  = token_clean(access);
+  String cleanRefresh = token_clean(refresh);
   preferences.begin(NVS_NAMESPACE, false);
-  preferences.putString(NVS_KEY_OAUTH_RT, refresh);
+  preferences.putString(NVS_KEY_OAUTH_RT, cleanRefresh);
   preferences.putUInt(NVS_KEY_OAUTH_EXP, expires_at);
-  preferences.putString(NVS_KEY_OAUTH_AT, access);
+  preferences.putString(NVS_KEY_OAUTH_AT, cleanAccess);
   preferences.end();
   Serial.printf("[secrets] tokens saved (at=%s rt=%s exp=%u)\n",
                 secret_redactor(access), secret_redactor(refresh),

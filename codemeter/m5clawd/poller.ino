@@ -26,9 +26,14 @@ static const char *RL_7D_RESET = "anthropic-ratelimit-unified-7d-reset";
 static const char *RL_HEADERS[] = {RL_5H_UTIL, RL_7D_UTIL, RL_5H_RESET, RL_7D_RESET};
 
 // The minimal request body — cheapest possible call; we only want the headers.
+// The `system` line is mandatory: Anthropic only honours a Claude Code OAuth
+// token (sk-ant-oat...) for inference when the request identifies as Claude
+// Code with this exact string (verified against the claude CLI binary). Without
+// it the token is rejected 401, even though it is otherwise valid.
 static const char POLL_BODY[] =
     "{\"model\":\"" ANTHROPIC_POLL_MODEL "\","
     "\"max_tokens\":1,"
+    "\"system\":\"You are Claude Code, Anthropic's official CLI for Claude.\","
     "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
 
 static bool s_headers_dumped = false;  // dump header values once, to confirm
@@ -134,7 +139,9 @@ PollOutcome poller_poll(const String &api_key, UsageData *out) {
       outcome = POLL_API_UNREACHABLE;
     }
   } else if (code > 0) {
-    outcome = classify_error(code, http.getString());
+    String body = http.getString();
+    Serial.printf("[poll] error %d body: %s\n", code, body.c_str());
+    outcome = classify_error(code, body);
   } else {
     // Negative codes are HTTPClient transport errors (TLS handshake, DNS, ...).
     Serial.printf("[poll] transport error: %s\n",
