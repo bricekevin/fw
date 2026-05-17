@@ -97,15 +97,17 @@ void setup() {
 
   SPIFFS.begin(true);
 
-  // Stage 1 — no home WiFi yet: run the soft-AP captive portal, then reboot
-  // into station mode (ADR 009).
-  if (!secrets_is_configured()) {
-    Serial.println("[boot] no WiFi config -> onboarding stage 1 (WiFi)");
+  // Onboarding (ADR 010) — single stage. The soft-AP captive portal collects
+  // the home-WiFi credentials and ingests the Claude token (scanned from the
+  // host pairing helper's QR via the /cred route). It reboots once it holds
+  // both. No on-device OAuth.
+  if (!(secrets_is_configured() && secrets_has_token())) {
+    Serial.println("[boot] not paired -> onboarding (WiFi + token)");
     ui_show_provisioning();
-    wifi_portal_wifi_stage();              // blocks; reboots on WiFi save
+    wifi_portal_onboard();                 // blocks; reboots when paired
   }
 
-  Serial.println("[boot] WiFi configured -> station mode");
+  Serial.println("[boot] paired -> station mode");
 
   ui_show_splash();
   delay(600);
@@ -114,30 +116,7 @@ void setup() {
   WiFi.setAutoReconnect(true);             // keep the link up across blips
   bool connected = station_connect();
 
-  // Stage 2 — on the network but holding no refreshable OAuth credential
-  // (fresh device, or a legacy/expired token): run the OAuth web portal on
-  // the home LAN, then reboot (ADR 009). It needs internet, so it runs only
-  // once the station link is up.
-  g_credState = secrets_cred_state();
-  g_expiresAt = secrets_get_expires_at();
-  if (g_credState != CRED_OAUTH) {
-    if (connected) {
-      Serial.printf("[boot] no OAuth credential (state=%d) "
-                    "-> onboarding stage 2 (login)\n", g_credState);
-      wifi_portal_oauth_stage();           // blocks; reboots on a good exchange
-    } else {
-      // Cannot onboard OAuth with no internet. Surface the re-onboard state;
-      // a power-cycle once WiFi is healthy re-enters Stage 2.
-      Serial.println("[boot] no OAuth credential and WiFi down "
-                     "-> re-onboard required");
-      g_reauthRequired = true;
-    }
-  } else {
-    Serial.printf("[boot] OAuth credential ok, access-token expiry=%u\n",
-                  g_expiresAt);
-  }
-
-  g_apiKey = secrets_get_access_token();   // OAuth access token, cached for the poller
+  g_apiKey = secrets_get_access_token();   // long-lived token, cached for the poller
 
   // Restore last-known-good usage so the screen shows real numbers (flagged
   // stale) instead of "--" before the first poll of this boot lands.

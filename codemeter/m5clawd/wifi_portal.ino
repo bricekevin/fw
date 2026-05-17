@@ -1,17 +1,15 @@
-// wifi_portal.ino — WiFiManager onboarding, two staged portals (ADR 007/009).
+// wifi_portal.ino — WiFiManager onboarding, single soft-AP stage (ADR 010).
 //
-// Onboarding is two independent WiFiManager sessions with a reboot between:
-//
-//   Stage 1  wifi_portal_wifi_stage()  — soft-AP captive portal. Collects the
-//            home-WiFi credentials, then reboots into station mode.
-//   Stage 2  wifi_portal_oauth_stage() — web portal on the home-LAN IP (no
-//            soft-AP). Shows the "Log in with Claude" authorize URL and a
-//            paste-back field for the one-time code; runs the code exchange.
+// Onboarding runs once, on the soft-AP captive portal:
+//   - WiFiManager collects the home-WiFi credentials (its built-in wifi page).
+//   - A custom /cred route ingests the Claude token, which the phone scans
+//     from the host pairing helper's QR (pairing/m5clawd-pair.py).
+// The device reboots into station mode once it holds both. There is no
+// on-device OAuth — ADR 010 supersedes the ADR 007 two-stage login flow.
 //
 // The soft-AP / captive-portal mechanics (ap_ssid, getParam, WiFiEvent,
 // onConfigModeCallback, setClass("invert"), setMenu) are inherited from the
-// Crypto_Coin_TickerUS_Stock reference (ADR 006). See ADR 009 for why the two
-// stages live on two different network surfaces.
+// Crypto_Coin_TickerUS_Stock reference (ADR 006).
 
 // AP SSID: "M5Clawd-" + last 6 hex digits of the MAC, e.g. "M5Clawd-A1B2C3".
 String ap_ssid() {
@@ -67,21 +65,66 @@ static const char PORTAL_CSS[] =
     ".msg.P{border-left-color:#DA7756}.msg.P h4{color:#DA7756}"
     "</style>";
 
-// --- Stage 1 — WiFi credentials over the soft-AP captive portal ------------
-// startConfigPortal() blocks until the portal exits; onWifiSaved() sets the
-// configured flag once WiFi credentials are saved and the connection succeeds,
-// so the loop ends and the device reboots into station mode. No custom field
-// here — the ADR 003 API-key field is gone (superseded by OAuth, ADR 007).
-//
-// This stage is intentionally BLOCKING. A non-blocking portal was tried so the
-// button-C reset could be serviced here, but blocking startConfigPortal()
-// retries a flaky first connect internally (hardware logs show the first STA
-// connect often fails, then succeeds) — the non-blocking loop lost that retry
-// and got stuck "connected but not saved". The reset gesture is not needed in
-// Stage 1 anyway: no credentials are stored yet, so there is nothing to wipe.
-void wifi_portal_wifi_stage() {
+// --- /cred route — token ingest from the pairing-helper QR -----------------
+// A small dark-themed result page for the phone (the soft-AP has no internet,
+// so it is fully self-contained).
+static void cred_reply(int code, const char *heading, const char *body) {
+  String html =
+      "<!doctype html><meta name=viewport content='width=device-width,"
+      "initial-scale=1'><body style='background:#1A1815;color:#F5F0E8;"
+      "font-family:-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;"
+      "padding:48px 24px'><h2 style='color:#DA7756'>";
+  html += heading;
+  html += "</h2><p>";
+  html += body;
+  html += "</p></body>";
+  wifiManager.server->send(code, "text/html", html);
+}
+
+// GET /cred?t=<token> — hit when the user scans the pairing helper's QR with
+// their phone camera. Saves the long-lived Claude token; if WiFi is already
+// configured the device is fully paired and restarts, otherwise it prompts
+// for the remaining WiFi step.
+static void handleCredRoute() {
+  String token = wifiManager.server->arg("t");
+  token.trim();
+  if (token.length() == 0) {
+    cred_reply(400, "No token",
+               "The pairing QR carried no token. Re-run the helper.");
+    return;
+  }
+
+  secrets_save_tokens(token, "", 0);   // long-lived token; no refresh / expiry
+  Serial.printf("[portal] token received via /cred (%s)\n",
+                secret_redactor(token));
+
+  if (secrets_is_configured()) {       // WiFi already done -> fully paired
+    cred_reply(200, "All set",
+               "M5Clawd is restarting and will start showing your usage.");
+    delay(900);
+    ESP.restart();
+  } else {
+    cred_reply(200, "Token saved",
+               "Now open the setup page and enter your home WiFi to finish.");
+  }
+}
+
+// Registered via setWebServerCallback, which fires before WiFiManager's own
+// routes are bound — so /cred is served by the captive-portal web server.
+static void registerCredRoute() {
+  wifiManager.server->on("/cred", handleCredRoute);
+}
+
+// --- Onboarding — single soft-AP stage (ADR 010) ---------------------------
+// Blocking captive portal. WiFiManager collects the home-WiFi credentials;
+// the /cred route ingests the token. startConfigPortal() returns when WiFi is
+// saved — if the token is not in yet the loop re-opens the portal so the user
+// can still scan it; the /cred handler restarts directly when the token is
+// what completes the pair. Either order (WiFi-first or token-first) works.
+void wifi_portal_onboard() {
   wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setAPCallback(onConfigModeCallback);
+  wifiManager.setWebServerCallback(registerCredRoute);   // adds GET /cred
   wifiManager.setTitle("M5CLAWD SETUP");
   wifiManager.setClass("invert");                  // dark theme
   wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
@@ -92,88 +135,11 @@ void wifi_portal_wifi_stage() {
 
   WiFi.onEvent(WiFiEvent);
 
-  while (!secrets_is_configured()) {
+  while (!(secrets_is_configured() && secrets_has_token())) {
     wifiManager.startConfigPortal(ap_ssid().c_str());
   }
 
-  Serial.println("[portal] WiFi saved -> restarting into station mode");
-  delay(500);
-  ESP.restart();
-}
-
-// --- Stage 2 — OAuth onboarding, web portal on the home LAN ----------------
-// Runs after the device is on the home network but still has no OAuth
-// credential. Serves the WiFiManager web portal (no soft-AP, no captive DNS)
-// on the station IP — the user's phone, still on home WiFi, reaches both
-// claude.com and the device. The LCD shows the authorize-URL QR + the LAN
-// portal address (ADR 009). startWebPortal() is non-blocking; process() is
-// pumped until oauthCodeSaveCallback() reports a successful exchange.
-void wifi_portal_oauth_stage() {
-  oauth_pkce_begin();
-  String authUrl = oauth_authorize_url();
-
-  // The portal's "Log in with Claude" block — a read-only custom-HTML field.
-  // oauthLoginHtml is a global so its buffer outlives the WiFiManagerParameter.
-  oauthLoginHtml =
-      String("<br/><b>Step 1.</b> Tap to log in (opens a new tab):"
-             "<a href='") + authUrl +
-      "' target='_blank' style='display:block;padding:14px;margin:8px 0;"
-      "background:#DA7756;color:#fff;text-align:center;border-radius:6px;"
-      "text-decoration:none;font-weight:bold'>Log in with Claude</a>"
-      "<b>Step 2.</b> Claude shows a one-time code &mdash; copy it.<br/>"
-      "<b>Step 3.</b> Return to <i>this</i> tab, paste the code below, "
-      "then tap Save.<br/>";
-  new (&oauthLoginField) WiFiManagerParameter(oauthLoginHtml.c_str());
-  new (&oauthCodeField) WiFiManagerParameter(
-      PARAM_ID_OAUTH_CODE, "One-time code", "", 256,
-      "placeholder=\"paste the code from Claude\"");
-  wifiManager.addParameter(&oauthLoginField);
-  wifiManager.addParameter(&oauthCodeField);
-
-  wifiManager.setSaveParamsCallback(oauthCodeSaveCallback);
-  wifiManager.setTitle("M5CLAWD - LOG IN");
-  wifiManager.setClass("invert");
-  wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
-  wifiManager.setShowInfoUpdate(false);
-  wifiManager.setShowInfoErase(false);
-  std::vector<const char *> wm_menu = {"param", "exit"};
-  wifiManager.setMenu(wm_menu);
-
-  // /param so the QR / link lands straight on the login + paste page,
-  // skipping the WiFiManager menu's "Setup" click.
-  String portalUrl =
-      String("http://") + WiFi.localIP().toString() + "/param";
-  ui_show_oauth_login(portalUrl);
-
-  // Non-blocking web portal: pump process() so the LCD/buttons stay live.
-  // The main loop() does not run during onboarding, so the button-C reset
-  // gesture is handled here too — hold 5 s to arm, +2 s to wipe NVS + WiFi.
-  wifiManager.startWebPortal();
-  bool resetArmed = false;
-  while (!g_oauth_onboarded) {
-    wifiManager.process();
-    M5.update();
-
-    if (M5.BtnC.pressedFor(RESET_HOLD_MS) && !resetArmed) {
-      resetArmed = true;
-      ui_show_reset_confirm();
-    }
-    if (resetArmed && M5.BtnC.pressedFor(RESET_HOLD_MS + 2000)) {
-      Serial.println("[reset] wiping NVS + WiFi credentials (Stage 2)");
-      secrets_reset();
-      delay(300);
-      ESP.restart();
-    }
-    if (resetArmed && M5.BtnC.wasReleased()) {
-      resetArmed = false;                  // released early -> aborted
-      ui_show_oauth_login(portalUrl);      // repaint the step-3 screen
-    }
-
-    delay(20);
-  }
-  wifiManager.stopWebPortal();
-
-  Serial.println("[portal] OAuth onboarded -> restarting");
+  Serial.println("[portal] paired (WiFi + token) -> restarting");
   delay(500);
   ESP.restart();
 }

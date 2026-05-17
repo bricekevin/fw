@@ -21,6 +21,17 @@ bool secrets_is_configured() {
   return configured;
 }
 
+// True once a Claude token has been stored (via the /cred pairing route, or
+// the legacy key). Onboarding is complete only when this and
+// secrets_is_configured() are both true (ADR 010).
+bool secrets_has_token() {
+  preferences.begin(NVS_NAMESPACE, true);
+  bool has = preferences.getString(NVS_KEY_OAUTH_AT, "").length() > 0 ||
+             preferences.getString(NVS_KEY_API_KEY, "").length() > 0;
+  preferences.end();
+  return has;
+}
+
 // Which credential the device holds. A non-empty string is treated as present
 // (getString's default "" stands in for a missing key — isKey() is not in the
 // pinned ESP32 core 1.0.4).

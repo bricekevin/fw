@@ -28,14 +28,15 @@ Each ADR follows this structure:
 | #   | Title                                       | Date       | Status   |
 | --- | ------------------------------------------- | ---------- | -------- |
 | 001 | Tech stack selection                        | 2026-05-14 (rev. 2026-05-15) | Accepted |
-| 002 | WiFi-direct vs BLE + host daemon            | 2026-05-14 | Accepted |
+| 002 | WiFi-direct vs BLE + host daemon            | 2026-05-14 | Accepted (runtime-standalone scope revised by 010) |
 | 003 | Captive-portal onboarding via WiFiManager   | 2026-05-14 | Accepted (API-key step superseded by 007) |
 | 004 | Port to sibling repo, do not fork           | 2026-05-14 (rev. 2026-05-15) | Accepted |
 | 005 | Secrets storage in NVS, no host keychain    | 2026-05-14 (rev. 2026-05-15) | Accepted (revised by 008) |
 | 006 | Start from a copy-and-strip of the crypto ticker | 2026-05-15 | Accepted |
-| 007 | OAuth onboarding via authorize-URL + paste-back code | 2026-05-15 | Accepted (steps 2-3 refined by 009) |
+| 007 | OAuth onboarding via authorize-URL + paste-back code | 2026-05-15 | Superseded by 010 |
 | 008 | Refresh-token storage — plaintext NVS, encryption deferred | 2026-05-15 | Accepted |
-| 009 | Stage-2 OAuth onboarding portal on the home LAN | 2026-05-15 | Accepted |
+| 009 | Stage-2 OAuth onboarding portal on the home LAN | 2026-05-15 | Superseded by 010 (with 007) |
+| 010 | Host-side pairing — credential minted on a computer | 2026-05-17 | Accepted |
 
 ---
 

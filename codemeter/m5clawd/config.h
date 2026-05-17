@@ -176,11 +176,11 @@ enum CredState {
 // wifi_portal.ino
 String ap_ssid();
 String getParam(String name);
-void   wifi_portal_wifi_stage();    // Stage 1 — soft-AP captive portal (WiFi creds)
-void   wifi_portal_oauth_stage();   // Stage 2 — OAuth web portal on the home LAN
+void   wifi_portal_onboard();       // single soft-AP stage — WiFi creds + token (ADR 010)
 
 // secrets_store.ino
 bool        secrets_is_configured();
+bool        secrets_has_token();    // a usable Claude token is stored
 CredState   secrets_cred_state();
 String      secrets_get_access_token();
 String      secrets_get_refresh_token();
