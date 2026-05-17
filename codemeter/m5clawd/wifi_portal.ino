@@ -3,7 +3,7 @@
 // Onboarding runs once, on the soft-AP captive portal:
 //   - WiFiManager collects the home-WiFi credentials (its built-in wifi page).
 //   - A custom /cred route ingests the Claude token, which the phone scans
-//     from the host pairing helper's QR (pairing/m5clawd-pair.py).
+//     from the pairing page at encinitas3d.com/m5clawd.
 // The device reboots into station mode once it holds both. There is no
 // on-device OAuth — ADR 010 supersedes the ADR 007 two-stage login flow.
 //
@@ -78,7 +78,7 @@ static const char MENU_HTML[] =
     "<p style='margin:6px 0'><b>1.</b> Tap <b>Configure WiFi</b> and enter "
     "your home network.</p>"
     "<p style='margin:6px 0'><b>2.</b> On a computer, open "
-    "<b>" WEB_HELPER_URL "</b> and run the pairing helper.</p>"
+    "<b>" WEB_HELPER_URL "</b> and follow the two steps there.</p>"
     "<p style='margin:6px 0'><b>3.</b> The helper shows a QR code &mdash; "
     "scan it with this phone's camera to finish.</p>"
     "</div>";

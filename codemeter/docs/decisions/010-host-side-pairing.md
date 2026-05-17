@@ -37,11 +37,13 @@ impersonating the CLI's OAuth client) is what fails.
 
 **The OAuth credential is minted on the user's computer, not on the device.**
 
-1. **Host helper.** `pairing/m5clawd-pair.py` (cross-platform Python) wraps
-   `claude setup-token` — Anthropic's **sanctioned** command for a long-lived
-   authentication token (it exists precisely for headless/non-interactive use).
-   The helper renders the resulting token as a QR code encoding
-   `http://192.168.4.1/cred?t=<token>`, served at `http://localhost:8765`.
+1. **Host helper — a static web page** (`pairing/index.html`, hosted at
+   `encinitas3d.com/m5clawd`). The user runs `claude setup-token` once —
+   Anthropic's **sanctioned** command for a long-lived authentication token —
+   and pastes the token into the page. The page renders it as a QR encoding
+   `http://192.168.4.1/cred?t=<token>`, entirely client-side (the token is
+   never uploaded). No download, no Python, no executable — the only command
+   the user runs is `claude setup-token`, and they already have `claude`.
 2. **Device ingest.** Onboarding is now **single-stage**. The soft-AP captive
    portal collects the home-WiFi credentials as before; the device also
    registers a custom `/cred` route (via WiFiManager's `setWebServerCallback`).
@@ -107,8 +109,9 @@ the **native camera app** opens — no in-page scanner, no HTTPS workaround.
 
 ## Implementation
 
-- `pairing/m5clawd-pair.py` — the host helper (done).
-- `pairing/index.html` — landing page for `encinitas3d.com/m5clawd` (done).
+- `pairing/index.html` — the all-in-one pairing page for
+  `encinitas3d.com/m5clawd` (done): instructions + client-side QR generator,
+  fully self-contained (the QR library is inlined).
 - Firmware: single-stage `wifi_portal_onboard()` with the `/cred` route;
   `wifi_portal_oauth_stage()` removed from the boot path.
 - **Follow-up:** delete the now-dead OAuth-exchange / PKCE / refresh code.
