@@ -65,6 +65,24 @@ static const char PORTAL_CSS[] =
     ".msg.P{border-left-color:#DA7756}.msg.P h4{color:#DA7756}"
     "</style>";
 
+// Welcome / instructions block injected into the captive-portal menu page
+// (setCustomMenuHTML). This is the first thing a new owner reads — it tells
+// them the whole flow, including that a computer and the pairing helper are
+// needed, so they are never left guessing what to do next.
+static const char MENU_HTML[] =
+    "<div style='text-align:left;background:#232019;border:1px solid #332f28;"
+    "border-radius:10px;padding:14px 16px;margin:12px 0'>"
+    "<h3 style='margin:0 0 6px'>Let's set up M5Clawd</h3>"
+    "<p style='margin:0 0 10px;color:#bdb7ad'>About 3 minutes &mdash; you'll "
+    "need this phone and a computer.</p>"
+    "<p style='margin:6px 0'><b>1.</b> Tap <b>Configure WiFi</b> and enter "
+    "your home network.</p>"
+    "<p style='margin:6px 0'><b>2.</b> On a computer, open "
+    "<b>" WEB_HELPER_URL "</b> and run the pairing helper.</p>"
+    "<p style='margin:6px 0'><b>3.</b> The helper shows a QR code &mdash; "
+    "scan it with this phone's camera to finish.</p>"
+    "</div>";
+
 // --- /cred route — token ingest from the pairing-helper QR -----------------
 // A small dark-themed result page for the phone (the soft-AP has no internet,
 // so it is fully self-contained).
@@ -128,6 +146,7 @@ void wifi_portal_onboard() {
   wifiManager.setTitle("M5CLAWD SETUP");
   wifiManager.setClass("invert");                  // dark theme
   wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
+  wifiManager.setCustomMenuHTML(MENU_HTML);        // first-run instructions
   wifiManager.setShowInfoUpdate(false);
   wifiManager.setShowInfoErase(false);
   std::vector<const char *> wm_menu = {"wifi", "exit"};

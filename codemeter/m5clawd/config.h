@@ -46,6 +46,10 @@
 // e.g. "M5Clawd-A1B2C3".
 #define WIFI_AP_SSID_PREFIX "M5Clawd"
 
+// Where the user gets the host pairing helper (ADR 010). Shown on the device
+// and in the captive portal so a first-time user knows where to go.
+#define WEB_HELPER_URL "encinitas3d.com/m5clawd"
+
 // ---------------------------------------------------------------------------
 // Persistent storage (Preferences / NVS)
 // ---------------------------------------------------------------------------
@@ -234,7 +238,6 @@ void ui_show_status();
 void ui_show_usage(const UsageData &d);
 void ui_update_usage(const UsageData &d);
 void ui_show_provisioning();
-void ui_show_oauth_login(const String &portal_url);
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_show_reonboard_confirm();

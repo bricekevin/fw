@@ -266,24 +266,22 @@ void ui_update_usage(const UsageData &d) {
 }
 
 // --- Onboarding screens ----------------------------------------------------
-// The three onboarding steps share one template: a thin header band carrying a
-// "STEP n/3" badge and the action verb, then a large centred QR, then two
-// detail lines. The QR is sized to dominate the panel and sits in the same
-// place on every step, so it stays big and easy to scan throughout.
-static void ui_onboard_screen(int step, const char *action, const char *qr,
+// The two onboarding screens share one template: a header band with the
+// "M5CLAWD SETUP" label and the screen's action, a large centred QR, and two
+// detail lines. Identical placement keeps the QR big and stationary. The
+// captive-portal page (not the LCD) carries the full step-by-step guide.
+static void ui_onboard_screen(const char *action, const char *qr,
                               uint8_t qr_version, const String &line1,
                               const String &line2) {
   M5.Lcd.fillScreen(COLOR_BG);
 
-  // Header band — "STEP n/3" (accent) on the left, action verb (dim) right.
+  // Header band — "M5CLAWD SETUP" (accent) on the left, action (dim) right.
   const int HDR = 22;
   M5.Lcd.fillRect(0, 0, 320, HDR, COLOR_SURFACE);
   M5.Lcd.setFreeFont(FSS9);
-  char badge[12];
-  snprintf(badge, sizeof(badge), "STEP %d/3", step);
   M5.Lcd.setTextColor(COLOR_PRIMARY);
   M5.Lcd.setTextDatum(ML_DATUM);
-  M5.Lcd.drawString(badge, PAD_EDGE, HDR / 2);
+  M5.Lcd.drawString("M5CLAWD SETUP", PAD_EDGE, HDR / 2);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
   M5.Lcd.setTextDatum(MR_DATUM);
   M5.Lcd.drawString(action, 320 - PAD_EDGE, HDR / 2);
@@ -302,29 +300,20 @@ static void ui_onboard_screen(int step, const char *action, const char *qr,
   M5.Lcd.drawString(line2, 160, y + 16);
 }
 
-// Step 1 — join the device's soft-AP. QR is a WIFI: join string for the open
-// AP; the SSID is shown too for manual entry.
+// First screen — join the device's setup WiFi. QR is a WIFI: join string for
+// the open soft-AP; the SSID is shown too for joining by hand.
 void ui_show_provisioning() {
   String ssid = ap_ssid();
   String qr = "WIFI:T:nopass;S:" + ssid + ";;";
-  ui_onboard_screen(1, "JOIN WIFI", qr.c_str(), 4,
-                    ssid, "or open  192.168.4.1");
+  ui_onboard_screen("JOIN WI-FI", qr.c_str(), 4,
+                    ssid, "join this, then open the setup page");
 }
 
-// Step 2 — a phone has joined the soft-AP. The QR lands straight on the WiFi
-// config page (no menu click); the captive portal usually opens it anyway.
+// Second screen — a phone has joined the soft-AP. The QR opens the setup page,
+// which carries the full step-by-step instructions (including the helper).
 void ui_portal_client_connected() {
-  ui_onboard_screen(2, "OPEN SETUP", "http://192.168.4.1/wifi", 4,
-                    "192.168.4.1", "open if setup did not pop up");
-}
-
-// Step 3 — the "Log in with Claude" screen (ADR 007/009). The device is on the
-// home network serving the Stage 2 web portal; `portal_url` is the LAN IP plus
-// /param, so the QR lands straight on the login + paste page. Re-scanning it
-// after the Claude login is the way back to the paste-the-code field.
-void ui_show_oauth_login(const String &portal_url) {
-  ui_onboard_screen(3, "LOG IN", portal_url.c_str(), 4,
-                    portal_url, "log in, then scan again to paste");
+  ui_onboard_screen("SETUP PAGE", "http://192.168.4.1/wifi", 4,
+                    "192.168.4.1", "the setup page guides you from here");
 }
 
 // Bottom-of-screen error banner — shown when the portal rejects a bad key.
