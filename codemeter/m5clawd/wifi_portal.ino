@@ -31,16 +31,19 @@ String getParam(String name) {
   return value;
 }
 
-// Stage 1 only — advance the LCD from step 1 (join the AP) to step 2 (open the
-// portal) when a phone joins the soft-AP. Phones routinely drop a no-internet
-// AP and rejoin, which previously flickered the screen 1<->2 on every
-// connect/disconnect event. So step 2 is drawn exactly once, on the first
-// client, and never reverted — the QR/URL on it stays valid for reconnects.
+// Stage 1 only — track the soft-AP client: a phone joining advances the LCD
+// from step 1 (join the AP) to step 2 (open the portal); a phone leaving
+// returns it to step 1 so it (or another phone) can rejoin.
 void WiFiEvent(WiFiEvent_t event, system_event_info_t info) {
-  static bool clientSeen = false;
-  if (event == SYSTEM_EVENT_AP_STACONNECTED && !clientSeen) {
-    clientSeen = true;
-    ui_portal_client_connected();   // step 2 — "open the portal" QR
+  switch (event) {
+    case SYSTEM_EVENT_AP_STACONNECTED:
+      ui_portal_client_connected();   // step 2 — "open the portal" QR
+      break;
+    case SYSTEM_EVENT_AP_STADISCONNECTED:
+      ui_show_provisioning();         // step 1 — "join the AP" QR
+      break;
+    default:
+      break;
   }
 }
 

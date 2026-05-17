@@ -33,9 +33,12 @@ device-side; nothing here touches the rate-limited endpoint.
 - **Button-C reset during onboarding** — `loop()` (hence `buttons_poll()`) does
   not run during onboarding, so the C-hold reset was dead on the onboarding
   screens. Added the gesture to Stage 2's portal loop. (Stage 1 — see below.)
-- **Step 1<->2 flicker fixed.** Phones repeatedly drop/rejoin the no-internet
-  soft-AP; every event redrew the screen. `WiFiEvent()` now draws step 2 once
-  on the first client and never reverts.
+- **Step screen tracks the AP client.** `WiFiEvent()` shows step 2 on client
+  connect and step 1 on disconnect. A latch (draw step 2 once, never revert)
+  was tried to kill the flicker, then removed per user request — a genuine
+  disconnect must return to step 1 so a phone can rejoin. Phones dropping and
+  rejoining a no-internet AP can still oscillate the screen; that reflects the
+  real AP state.
 
 ### Reverted — non-blocking Stage 1
 
