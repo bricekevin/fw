@@ -1,9 +1,113 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-16 (Session 18)
+**Last Updated:** 2026-05-17 (Session 19)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 19 — 2026-05-17
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Duration:** long session
+**Focus:** The on-device OAuth wall, the architecture pivot to host-side
+pairing (ADR 010), and end-to-end success — **the device now works.**
+
+### THE MILESTONE — it works end to end
+
+A real M5Stack, freshly onboarded, **polls `api.anthropic.com` and shows
+live usage on the LCD** (observed: session 33%, weekly 46%). Onboard ->
+pair -> poll -> display is proven on hardware.
+
+### What happened, in order
+
+1. **The OAuth wall.** Sessions 17-18's on-device OAuth `authorize_code`
+   exchange kept getting `HTTP 429 rate_limit_error` from
+   `platform.claude.com/v1/oauth/token` — persistent 20+ h, from two
+   different IPs (home + cellular). Conclusion: not IP-based; the
+   unsanctioned use of the Claude Code OAuth client was being rejected.
+   On-device OAuth is a dead end (the ADR 007 fragility, realised).
+
+2. **Pivot — ADR 010, host-side pairing.** OAuth moves off the device.
+   The user mints a long-lived token with `claude setup-token`
+   (Anthropic's sanctioned command). The device just receives that token
+   during WiFi setup and runs standalone. No on-device OAuth, no 429.
+
+3. **Built:**
+   - `pairing/index.html` — the all-in-one pairing page (rebranded
+     "Claude Code Meter"): instructions + a client-side QR generator
+     (`qrcode-generator`, MIT, inlined — fully self-contained). The token
+     never leaves the browser.
+   - Firmware single-stage onboarding (`wifi_portal_onboard()`): the
+     captive portal's WiFi page now carries a **Claude token field**
+     (entered with the WiFi creds, one Save) plus a `/cred` route for the
+     QR-scan path. On-device OAuth removed from the boot path.
+   - Self-guiding captive portal (`setCustomMenuHTML` welcome block) so a
+     first-time owner is told to use a computer + where to go.
+
+4. **Rebrand -> "Claude Code Meter"** (user-facing only, per decision):
+   LCD splash + onboarding screens, captive portal title/welcome, the
+   soft-AP SSID (`ClaudeCodeMeter-XXXXXX`), the pairing page. Internal
+   code identifiers (`m5clawd/`, sketch, NVS namespace, profile) unchanged.
+
+5. **Two poll bugs found + fixed on hardware** (poll was 401 "Invalid
+   bearer token"):
+   - `POLL_BODY` had no `system` field — Anthropic only honours an OAuth
+     token for inference when the request identifies as Claude Code via
+     the exact `"You are Claude Code, Anthropic's official CLI for
+     Claude."` string. Added.
+   - The pasted token had **2 stray spaces mid-string** (110 chars vs the
+     real 108) — a line-wrapped copy. `token_clean()` now strips all
+     whitespace on save *and* read, fixing the stored credential without
+     a re-pair.
+
+### Decisions
+
+- **ADR 010** written (host-side pairing) — supersedes ADR 007 and 009,
+  revises ADR 002 ("standalone" is now runtime-only; a computer is needed
+  once at setup). ADR index updated.
+
+### Verification
+
+- `arduino-cli compile --profile m5clawd` clean — 87% flash.
+- Host tests: all 5 suites pass (181 checks).
+- **Hardware: device onboards, polls 200, displays real usage.**
+
+### Files Changed (this session)
+
+```text
+pairing/index.html            — all-in-one pairing page (new; replaced m5clawd-pair.py)
+docs/decisions/010-*.md        — ADR 010 (new); 000-index updated
+m5clawd/wifi_portal.ino        — single-stage onboard, /cred route, token field, rebrand
+m5clawd/m5clawd.ino            — single-stage boot; tokenField global
+m5clawd/secrets_store.ino      — secrets_has_token(); token_clean() strip-on-save/read
+m5clawd/poller.ino             — system prompt in POLL_BODY; error-body log
+m5clawd/ui.ino, config.h       — rebrand, PARAM_ID_TOKEN, dead-code trims
+```
+
+### Known Issues / Follow-ups
+
+| Issue | Severity | Notes |
+|-------|----------|-------|
+| Dead OAuth code still in tree | LOW | `oauth.ino` exchange/PKCE, `oauth_pkce.*`, `refresh_policy.*`, refresh client — unused after ADR 010, compiles fine. Delete in a cleanup pass (flagged in ADR 010). |
+| `PHASE_TASKS.md` stale vs ADR 010 | MED | Phase 3's task list is built around on-device OAuth (Epics 1-5). The pivot superseded much of it. Needs a re-plan (`/2_pm`) against ADR 010 before it is a reliable checklist again. |
+| Pairing page whitespace guard | LOW | The page could strip whitespace in JS before building the QR, catching a smudged token even earlier. |
+| Token longevity unverified | LOW | `claude setup-token` tokens are "long-lived" but the exact lifetime / expiry behaviour on the device is unconfirmed — watch for a future 401 when it eventually expires (re-pair is the recovery). |
+
+### Next Session Should
+
+1. Delete the dead OAuth code (oauth exchange/PKCE, refresh policy/client,
+   `oauth_pkce.*` + its test) — clean, mechanical, flagged in ADR 010.
+2. Re-plan `PHASE_TASKS.md` against ADR 010 (`/2_pm`) so the checklist
+   matches the shipped architecture.
+3. Optional polish: pairing-page whitespace guard; multi-day soak test.
+
+### Worktree
+
+`/Users/kevinbrice/GIT/theClaw-phase-2-20260515`, branch
+`phase-2-20260515` (local only, no remote, not merged) — left in place;
+`cd` straight back in next session.
 
 ---
 
