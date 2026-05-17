@@ -101,41 +101,22 @@ const char *secret_redactor(const String &k) {
   return "***";
 }
 
-// WiFiManager setSaveConfigCallback (Stage 1) — fired once the home WiFi
-// credentials are saved and the connection succeeds. The credentials live in
-// the ESP32's own WiFi NVS; this only records that first-boot WiFi setup is
-// done, so the next boot skips Stage 1 and goes to station mode.
+// WiFiManager setSaveConfigCallback — fired once the home WiFi credentials are
+// saved and the connection succeeds. Records that WiFi setup is done, and —
+// since the Claude-token field lives on the same page — also stores the token
+// the user pasted there (doParamSave() has already copied it into tokenField).
 void onWifiSaved() {
   preferences.begin(NVS_NAMESPACE, false);
   preferences.putBool(NVS_KEY_CONFIGURED, true);
   preferences.end();
   Serial.println("[portal] WiFi credentials saved");
-}
 
-// WiFiManager setSaveParamsCallback (Stage 2) — fired when the user submits the
-// OAuth portal page. Exchange the pasted one-time code for tokens: on success
-// flag onboarding complete (the Stage 2 loop then reboots); on failure leave a
-// clear on-screen hint and keep the portal open for another attempt.
-void oauthCodeSaveCallback() {
-  String code = getParam(PARAM_ID_OAUTH_CODE);
-  code.trim();
-  if (code.length() == 0) return;                  // page saved, field empty
-
-  switch (oauth_exchange_code(code)) {
-    case EXCHANGE_OK:
-      Serial.println("[portal] OAuth code accepted");
-      g_oauth_onboarded = true;
-      break;
-    case EXCHANGE_BAD_CODE:
-      ui_portal_hint("Code rejected - check it and paste again");
-      break;
-    case EXCHANGE_RATE_LIMITED:
-      ui_portal_hint("Rate limited - wait, then log in again");
-      break;
-    case EXCHANGE_NET_ERROR:
-    default:
-      ui_portal_hint("Network error - try the code again");
-      break;
+  String token = String(tokenField.getValue());
+  token.trim();
+  if (token.length() > 0) {
+    secrets_save_tokens(token, "", 0);   // long-lived token; no refresh / expiry
+    Serial.printf("[portal] token saved from the WiFi page (%s)\n",
+                  secret_redactor(token));
   }
 }
 

@@ -43,8 +43,8 @@
 // WiFi provisioning (captive portal)
 // ---------------------------------------------------------------------------
 // Soft-AP SSID base. The last 6 hex digits of the MAC are appended at runtime,
-// e.g. "M5Clawd-A1B2C3".
-#define WIFI_AP_SSID_PREFIX "M5Clawd"
+// e.g. "ClaudeCodeMeter-A1B2C3".
+#define WIFI_AP_SSID_PREFIX "ClaudeCodeMeter"
 
 // Where the user gets the host pairing helper (ADR 010). Shown on the device
 // and in the captive portal so a first-time user knows where to go.
@@ -119,9 +119,9 @@ enum CredState {
 // authorize endpoint. Verified against the claude CLI's buildAuthUrl.
 #define OAUTH_SCOPE         "user:inference"
 
-// WiFiManagerParameter id for the Epic 3 paste-back one-time code field. The
-// "Log in with Claude" block is a custom-HTML parameter and needs no id.
-#define PARAM_ID_OAUTH_CODE "oauth_code"
+// WiFiManagerParameter id for the Claude-token field shown on the captive
+// portal's WiFi page (ADR 010 — entered alongside the WiFi credentials).
+#define PARAM_ID_TOKEN "token"
 
 // Refresh the access token this many seconds before it expires. Generous (30
 // min) so a flaky network gets many poll-spaced retries before the token
@@ -193,8 +193,7 @@ void        secrets_save_tokens(const String &access, const String &refresh,
                                 uint32_t expires_at);
 void        secrets_reset();
 void        secrets_clear_oauth();
-void        onWifiSaved();           // WiFiManager callback — home WiFi creds saved
-void        oauthCodeSaveCallback(); // Stage 2 portal — paste-back code submitted
+void        onWifiSaved();           // WiFiManager callback — WiFi + token saved
 const char *secret_redactor(const String &k);
 
 // oauth.ino

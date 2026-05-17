@@ -37,10 +37,11 @@ void ui_show_splash() {
   M5.Lcd.setTextDatum(MC_DATUM);
   M5.Lcd.setFreeFont(FSSB12);
   M5.Lcd.setTextColor(COLOR_PRIMARY);
-  M5.Lcd.drawString("M5Clawd", 160, 104);
+  M5.Lcd.drawString("Claude Code", 160, 96);
+  M5.Lcd.drawString("Meter", 160, 124);
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.drawString("v" FW_VERSION, 160, 140);
+  M5.Lcd.drawString("v" FW_VERSION, 160, 156);
 }
 
 void ui_show_connecting() {
@@ -267,24 +268,20 @@ void ui_update_usage(const UsageData &d) {
 
 // --- Onboarding screens ----------------------------------------------------
 // The two onboarding screens share one template: a header band with the
-// "M5CLAWD SETUP" label and the screen's action, a large centred QR, and two
-// detail lines. Identical placement keeps the QR big and stationary. The
-// captive-portal page (not the LCD) carries the full step-by-step guide.
-static void ui_onboard_screen(const char *action, const char *qr,
-                              uint8_t qr_version, const String &line1,
-                              const String &line2) {
+// "CLAUDE CODE METER" name, a large centred QR, and two detail lines.
+// Identical placement keeps the QR big and stationary. The captive-portal
+// page (not the LCD) carries the full step-by-step guide.
+static void ui_onboard_screen(const char *qr, uint8_t qr_version,
+                              const String &line1, const String &line2) {
   M5.Lcd.fillScreen(COLOR_BG);
 
-  // Header band — "M5CLAWD SETUP" (accent) on the left, action (dim) right.
+  // Header band — the product name, centred.
   const int HDR = 22;
   M5.Lcd.fillRect(0, 0, 320, HDR, COLOR_SURFACE);
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextColor(COLOR_PRIMARY);
-  M5.Lcd.setTextDatum(ML_DATUM);
-  M5.Lcd.drawString("M5CLAWD SETUP", PAD_EDGE, HDR / 2);
-  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
-  M5.Lcd.setTextDatum(MR_DATUM);
-  M5.Lcd.drawString(action, 320 - PAD_EDGE, HDR / 2);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.drawString("CLAUDE CODE METER", 160, HDR / 2);
 
   // Large centred QR — fills most of the panel for easy scanning.
   const int qr_w = 168;
@@ -305,15 +302,15 @@ static void ui_onboard_screen(const char *action, const char *qr,
 void ui_show_provisioning() {
   String ssid = ap_ssid();
   String qr = "WIFI:T:nopass;S:" + ssid + ";;";
-  ui_onboard_screen("JOIN WI-FI", qr.c_str(), 4,
-                    ssid, "join this, then open the setup page");
+  ui_onboard_screen(qr.c_str(), 4,
+                    ssid, "Join this Wi-Fi, then open the setup page");
 }
 
 // Second screen — a phone has joined the soft-AP. The QR opens the setup page,
-// which carries the full step-by-step instructions (including the helper).
+// which carries the full step-by-step instructions.
 void ui_portal_client_connected() {
-  ui_onboard_screen("SETUP PAGE", "http://192.168.4.1/wifi", 4,
-                    "192.168.4.1", "the setup page guides you from here");
+  ui_onboard_screen("http://192.168.4.1/wifi", 4,
+                    "192.168.4.1", "Open this address to set up the device");
 }
 
 // Bottom-of-screen error banner — shown when the portal rejects a bad key.

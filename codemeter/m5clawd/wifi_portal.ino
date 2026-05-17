@@ -11,7 +11,8 @@
 // onConfigModeCallback, setClass("invert"), setMenu) are inherited from the
 // Crypto_Coin_TickerUS_Stock reference (ADR 006).
 
-// AP SSID: "M5Clawd-" + last 6 hex digits of the MAC, e.g. "M5Clawd-A1B2C3".
+// AP SSID: WIFI_AP_SSID_PREFIX + last 6 hex digits of the MAC,
+// e.g. "ClaudeCodeMeter-A1B2C3".
 String ap_ssid() {
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -66,21 +67,19 @@ static const char PORTAL_CSS[] =
     "</style>";
 
 // Welcome / instructions block injected into the captive-portal menu page
-// (setCustomMenuHTML). This is the first thing a new owner reads — it tells
-// them the whole flow, including that a computer and the pairing helper are
-// needed, so they are never left guessing what to do next.
+// (setCustomMenuHTML). The first thing a new owner reads — it spells out the
+// whole flow, including that a computer is needed to mint the token, so they
+// are never left guessing what to do next.
 static const char MENU_HTML[] =
     "<div style='text-align:left;background:#232019;border:1px solid #332f28;"
     "border-radius:10px;padding:14px 16px;margin:12px 0'>"
-    "<h3 style='margin:0 0 6px'>Let's set up M5Clawd</h3>"
-    "<p style='margin:0 0 10px;color:#bdb7ad'>About 3 minutes &mdash; you'll "
-    "need this phone and a computer.</p>"
-    "<p style='margin:6px 0'><b>1.</b> Tap <b>Configure WiFi</b> and enter "
-    "your home network.</p>"
-    "<p style='margin:6px 0'><b>2.</b> On a computer, open "
-    "<b>" WEB_HELPER_URL "</b> and follow the two steps there.</p>"
-    "<p style='margin:6px 0'><b>3.</b> The helper shows a QR code &mdash; "
-    "scan it with this phone's camera to finish.</p>"
+    "<h3 style='margin:0 0 6px'>Let's set up your Claude Code Meter</h3>"
+    "<p style='margin:0 0 10px;color:#bdb7ad'>About 2 minutes &mdash; you'll "
+    "need a computer too.</p>"
+    "<p style='margin:6px 0'><b>1.</b> On a computer, open "
+    "<b>" WEB_HELPER_URL "</b> to get your Claude token.</p>"
+    "<p style='margin:6px 0'><b>2.</b> Tap <b>Configure WiFi</b> &mdash; enter "
+    "your home WiFi, paste the token, and Save.</p>"
     "</div>";
 
 // --- /cred route — token ingest from the pairing-helper QR -----------------
@@ -118,7 +117,8 @@ static void handleCredRoute() {
 
   if (secrets_is_configured()) {       // WiFi already done -> fully paired
     cred_reply(200, "All set",
-               "M5Clawd is restarting and will start showing your usage.");
+               "Your Claude Code Meter is restarting and will start "
+               "showing your usage.");
     delay(900);
     ESP.restart();
   } else {
@@ -143,7 +143,7 @@ void wifi_portal_onboard() {
   wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setAPCallback(onConfigModeCallback);
   wifiManager.setWebServerCallback(registerCredRoute);   // adds GET /cred
-  wifiManager.setTitle("M5CLAWD SETUP");
+  wifiManager.setTitle("Claude Code Meter");
   wifiManager.setClass("invert");                  // dark theme
   wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
   wifiManager.setCustomMenuHTML(MENU_HTML);        // first-run instructions
@@ -151,6 +151,13 @@ void wifi_portal_onboard() {
   wifiManager.setShowInfoErase(false);
   std::vector<const char *> wm_menu = {"wifi", "exit"};
   wifiManager.setMenu(wm_menu);
+
+  // Claude-token field — rendered on the WiFi page (_paramsInWifi is on by
+  // default), so the user enters WiFi and the token in one step (ADR 010).
+  new (&tokenField) WiFiManagerParameter(
+      PARAM_ID_TOKEN, "Claude token", "", 256,
+      "placeholder=\"paste your claude setup-token output\"");
+  wifiManager.addParameter(&tokenField);
 
   WiFi.onEvent(WiFiEvent);
 

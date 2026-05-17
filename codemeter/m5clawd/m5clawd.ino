@@ -32,10 +32,7 @@
 // --- Globals (defined here, visible to every tab) --------------------------
 Preferences          preferences;
 WiFiManager          wifiManager;
-WiFiManagerParameter oauthLoginField;      // Stage 2 portal — "Log in" HTML block
-WiFiManagerParameter oauthCodeField;       // Stage 2 portal — paste-back code field
-String               oauthLoginHtml;      // backing buffer for oauthLoginField
-bool                 g_oauth_onboarded = false;  // set on a good Stage 2 exchange
+WiFiManagerParameter tokenField;           // captive-portal WiFi page — Claude token field
 
 enum Screen { SCREEN_SPLASH, SCREEN_USAGE, SCREEN_STATUS, SCREEN_COUNT };
 static Screen currentScreen     = SCREEN_SPLASH;
