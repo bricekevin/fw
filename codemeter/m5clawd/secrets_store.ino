@@ -32,21 +32,6 @@ bool secrets_has_token() {
   return has;
 }
 
-// Which credential the device holds. A non-empty string is treated as present
-// (getString's default "" stands in for a missing key — isKey() is not in the
-// pinned ESP32 core 1.0.4).
-CredState secrets_cred_state() {
-  preferences.begin(NVS_NAMESPACE, true);
-  bool hasAccess  = preferences.getString(NVS_KEY_OAUTH_AT, "").length() > 0;
-  bool hasRefresh = preferences.getString(NVS_KEY_OAUTH_RT, "").length() > 0;
-  bool hasLegacy  = preferences.getString(NVS_KEY_API_KEY, "").length() > 0;
-  preferences.end();
-
-  if (hasAccess && hasRefresh) return CRED_OAUTH;   // can self-refresh
-  if (hasAccess || hasLegacy)  return CRED_LEGACY;  // a token, but no refresh
-  return CRED_NONE;
-}
-
 // A Claude token (sk-ant-...) is base64url-ish and never contains whitespace.
 // A copy-paste can smuggle in stray spaces or newlines — e.g. when the token
 // is copied from a line-wrapped terminal display. Strip every whitespace
@@ -73,22 +58,6 @@ String secrets_get_access_token() {
   }
   preferences.end();
   return token_clean(token);
-}
-
-// The refresh token, or "" if none is stored.
-String secrets_get_refresh_token() {
-  preferences.begin(NVS_NAMESPACE, true);
-  String token = preferences.getString(NVS_KEY_OAUTH_RT, "");
-  preferences.end();
-  return token;
-}
-
-// Access-token expiry as Unix epoch seconds, or 0 if unknown.
-uint32_t secrets_get_expires_at() {
-  preferences.begin(NVS_NAMESPACE, true);
-  uint32_t expires_at = preferences.getUInt(NVS_KEY_OAUTH_EXP, 0);
-  preferences.end();
-  return expires_at;
 }
 
 // Persist a freshly obtained credential — from onboarding (Epic 3) or a token

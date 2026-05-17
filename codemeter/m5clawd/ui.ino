@@ -365,15 +365,3 @@ void ui_show_reauth_required() {
   M5.Lcd.drawString("Lost the device? Revoke its access", 160, 162);
   M5.Lcd.drawString("in your Claude account settings.", 160, 180);
 }
-
-// Transient "refreshing" badge — overwrites only the status-bar badge slot
-// while a blocking token refresh is in flight. The stale card data underneath
-// stays put; the next ui_update_usage() restores the real badge. Meant for the
-// Usage screen (the only one with a status bar); the caller guards on that.
-void ui_show_refreshing() {
-  M5.Lcd.fillRect(0, 0, 130, STATUSBAR_H, COLOR_SURFACE);
-  M5.Lcd.setFreeFont(FSS9);
-  M5.Lcd.setTextDatum(ML_DATUM);
-  M5.Lcd.setTextColor(COLOR_WARNING);
-  M5.Lcd.drawString("refreshing", PAD_EDGE, STATUSBAR_H / 2 + 1);
-}

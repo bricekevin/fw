@@ -10,7 +10,6 @@
 #include "usage_data.h"      // the shared UsageData struct (pure, host-testable)
 #include "state_machine.h"   // PollState / PollOutcome (pure, host-testable)
 #include "format_helpers.h"  // countdown / relative-time formatters (pure)
-#include "refresh_policy.h"  // OAuth refresh-timing decisions (pure, host-testable)
 
 // ---------------------------------------------------------------------------
 // Firmware identity
@@ -59,24 +58,14 @@
 // Last-known-good UsageData blob, restored on boot (NVS key <= 15 chars).
 #define NVS_KEY_LKG_USAGE "lkg_usage"
 
-// OAuth credential record (ADR 008). The Phase 2 single-string credential is
-// superseded by access token + refresh token + access-token expiry. NVS keys
-// must stay <= 15 chars.
-#define NVS_KEY_OAUTH_AT  "oauth_at"   // access token  (String)
-#define NVS_KEY_OAUTH_RT  "oauth_rt"   // refresh token (String)
-#define NVS_KEY_OAUTH_EXP "oauth_exp"  // access-token expiry, epoch SECONDS (uint32)
-// Legacy pre-Phase-3 key — read only for migration detection. A device holding
-// this and no refresh token cannot refresh and is treated as CRED_LEGACY.
-#define NVS_KEY_API_KEY "anthropic_key"
-
-// What credential the device currently holds — drives the boot/poll path and
-// the "re-onboard required" UI state.
-enum CredState {
-  CRED_NONE,    // no credential stored at all (fresh device)
-  CRED_LEGACY,  // only the pre-Phase-3 single token; no refresh token -> cannot
-                // self-refresh -> re-onboard required
-  CRED_OAUTH,   // access token + refresh token both present -> can self-refresh
-};
+// The Claude token (ADR 010) lives in NVS_KEY_OAUTH_AT — long-lived, used
+// directly as the poller's Bearer credential. The RT/EXP keys are retained
+// only so secrets_reset()/secrets_clear_oauth() can wipe any legacy value.
+// NVS keys must stay <= 15 chars.
+#define NVS_KEY_OAUTH_AT  "oauth_at"      // the Claude token (String)
+#define NVS_KEY_OAUTH_RT  "oauth_rt"      // legacy refresh token — wiped, not used
+#define NVS_KEY_OAUTH_EXP "oauth_exp"     // legacy expiry — wiped, not used
+#define NVS_KEY_API_KEY   "anthropic_key" // legacy pre-Phase-3 key — read-only fallback
 
 // ---------------------------------------------------------------------------
 // Anthropic API
@@ -94,47 +83,11 @@ enum CredState {
 #define ANTHROPIC_POLL_MODEL "claude-haiku-4-5-20251001"
 
 // ---------------------------------------------------------------------------
-// Claude Code OAuth — token refresh (ADR 007; Phase 3 Epic 1 spike)
+// Onboarding (ADR 010 — host-side pairing)
 // ---------------------------------------------------------------------------
-// Production Claude Code OAuth client. Public client — no secret; PKCE is the
-// client proof. client_id and endpoint established by the Epic 1 spike; see
-// docs/Phase 3/PHASE_IMP.md. These pin third-party OAuth-beta internals — if
-// Anthropic changes them, a refresh fails closed and the device asks the user
-// to re-onboard. Keeping them here makes a change a one-line edit.
-#define OAUTH_CLIENT_ID "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-#define OAUTH_TOKEN_URL "https://platform.claude.com/v1/oauth/token"
-
-// Onboarding endpoints (ADR 007 — authorize-code + PKCE, paste-back code).
-// The authorize endpoint is the claude.ai / subscription one: M5Clawd reads
-// the Claude Code subscription "unified" rate limits. OAUTH_REDIRECT_URI is the
-// manual callback — claude.ai then shows the one-time code for the user to copy
-// (the headless flow; the device is not a registrable redirect target).
-#define OAUTH_AUTHORIZE_URL "https://claude.com/cai/oauth/authorize"
-#define OAUTH_REDIRECT_URI  "https://platform.claude.com/oauth/code/callback"
-// OAuth scope. The Claude Code OAuth client accepts exactly two registered
-// scope sets — "user:inference" (inference only) or the full
-// "user:profile user:inference user:sessions:claude_code user:mcp_servers".
-// M5Clawd only polls, so it requests the inference-only set; any other
-// combination (e.g. "user:inference user:profile") is rejected by the
-// authorize endpoint. Verified against the claude CLI's buildAuthUrl.
-#define OAUTH_SCOPE         "user:inference"
-
 // WiFiManagerParameter id for the Claude-token field shown on the captive
-// portal's WiFi page (ADR 010 — entered alongside the WiFi credentials).
+// portal's WiFi page — entered alongside the WiFi credentials.
 #define PARAM_ID_TOKEN "token"
-
-// Refresh the access token this many seconds before it expires. Generous (30
-// min) so a flaky network gets many poll-spaced retries before the token
-// actually dies. Epic 5.2 may shrink this to force a refresh during testing.
-#define REFRESH_MARGIN_S 1800
-
-// HTTP/TLS timeout for a single token-refresh call (milliseconds).
-#define REFRESH_HTTP_TIMEOUT_MS 15000
-
-// Backoff after a transient refresh failure: base_s, then exponential
-// (base_s << fails), capped at max_s. Consumed by refresh_retry_delay_s().
-#define REFRESH_BACKOFF_BASE_S 60
-#define REFRESH_BACKOFF_MAX_S 900
 
 // ---------------------------------------------------------------------------
 // UI — colors (RGB565, what M5.Lcd draw calls expect)
@@ -185,41 +138,13 @@ void   wifi_portal_onboard();       // single soft-AP stage — WiFi creds + tok
 // secrets_store.ino
 bool        secrets_is_configured();
 bool        secrets_has_token();    // a usable Claude token is stored
-CredState   secrets_cred_state();
 String      secrets_get_access_token();
-String      secrets_get_refresh_token();
-uint32_t    secrets_get_expires_at();
 void        secrets_save_tokens(const String &access, const String &refresh,
                                 uint32_t expires_at);
 void        secrets_reset();
 void        secrets_clear_oauth();
 void        onWifiSaved();           // WiFiManager callback — WiFi + token saved
 const char *secret_redactor(const String &k);
-
-// oauth.ino
-enum RefreshResult {
-  REFRESH_OK,            // new access token obtained and persisted
-  REFRESH_NO_TOKEN,      // no refresh token stored -> re-onboard required
-  REFRESH_INVALID_GRANT, // endpoint rejected the refresh token -> re-onboard
-  REFRESH_NET_ERROR,     // transient TLS/HTTP failure -> retry with backoff
-};
-RefreshResult oauth_refresh();
-// Outcome of the onboarding code exchange (Epic 3.2).
-enum ExchangeResult {
-  EXCHANGE_OK,            // access + refresh token obtained and persisted
-  EXCHANGE_BAD_CODE,      // endpoint rejected the code/verifier — user re-pastes
-  EXCHANGE_RATE_LIMITED,  // endpoint returned 429 — transient; wait, then retry
-  EXCHANGE_NET_ERROR,     // transient TLS/HTTP failure — user retries
-};
-ExchangeResult oauth_exchange_code(const String &pasted);
-// Onboarding (Epic 3). oauth_pkce_begin() mints a fresh code_verifier /
-// code_challenge / state for one onboarding session; the others read that
-// session state back. The verifier and state are held in RAM only — a reboot
-// mid-onboarding discards them and the user restarts the login step (ADR 007).
-void   oauth_pkce_begin();
-String oauth_authorize_url();
-String oauth_pkce_verifier();
-String oauth_state_token();
 
 // poller.ino
 void        poller_begin();
@@ -241,6 +166,5 @@ void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_show_reonboard_confirm();
 void ui_show_reauth_required();
-void ui_show_refreshing();
 void ui_portal_hint(const char *msg);
 void ui_portal_client_connected();
