@@ -13,6 +13,7 @@
 // tab) so the HTTPClient type is visible where Arduino auto-generates this
 // tab's function prototypes.
 #include <time.h>
+#include <stdlib.h>      // setenv() — local-timezone setup in poller_begin()
 #include "certs.h"
 #include "parse_headers.h"
 
@@ -42,8 +43,53 @@ static bool s_headers_dumped = false;  // dump header values once, to confirm
 // configTime() kicks off background NTP. Until it lands, time() returns a
 // near-boot value; poller_time_now() reports 0 in that case so parse_reset()
 // degrades gracefully (reset countdowns read 0 until the clock syncs).
+
+// Best-effort IP-based timezone detection. ip-api.com returns the device's
+// current UTC offset (seconds, DST already folded in) for its public IP; we
+// turn that into a fixed-offset POSIX TZ string. The free tier is plain HTTP
+// only — no TLS. On any failure the caller's TZ_POSIX default stays in effect.
+// Note: a fixed offset does not self-adjust at the next DST change; it is
+// re-detected on each boot.
+static bool poller_detect_tz() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  WiFiClient client;
+  HTTPClient http;
+  http.setTimeout(5000);
+  bool ok = false;
+  if (http.begin(client, "http://ip-api.com/json/?fields=offset")) {
+    if (http.GET() == 200) {
+      StaticJsonDocument<192> doc;
+      if (deserializeJson(doc, http.getString()) == DeserializationError::Ok) {
+        long off = doc["offset"] | 999999L;     // seconds, local relative to UTC
+        if (off != 999999L) {
+          long p = -off;                        // POSIX offset = UTC - local
+          char sign = p < 0 ? '-' : '+';
+          long a = p < 0 ? -p : p;
+          char tz[24];
+          snprintf(tz, sizeof(tz), "LOC%c%ld:%02ld:%02ld", sign,
+                   a / 3600, (a % 3600) / 60, a % 60);
+          setenv("TZ", tz, 1);
+          tzset();
+          Serial.printf("[tz] detected offset %lds -> TZ=%s\n", off, tz);
+          ok = true;
+        }
+      }
+    }
+  }
+  http.end();
+  client.stop();
+  return ok;
+}
+
 void poller_begin() {
-  configTime(0, 0, NTP_SERVER_1, NTP_SERVER_2);
+  configTime(0, 0, NTP_SERVER_1, NTP_SERVER_2);   // NTP in UTC
+  setenv("TZ", TZ_POSIX, 1);                      // fallback local TZ
+  tzset();
+  if (poller_detect_tz())
+    Serial.println("[tz] using IP-detected timezone");
+  else
+    Serial.println("[tz] IP detection unavailable -- using TZ_POSIX default");
   Serial.println("[poll] NTP sync requested");
 }
 

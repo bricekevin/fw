@@ -12,7 +12,7 @@
 // Crypto_Coin_TickerUS_Stock reference (ADR 006).
 
 // AP SSID: WIFI_AP_SSID_PREFIX + last 6 hex digits of the MAC,
-// e.g. "ClaudeCodeMeter-A1B2C3".
+// e.g. "codeMeter-A1B2C3".
 String ap_ssid() {
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -73,7 +73,7 @@ static const char PORTAL_CSS[] =
 static const char MENU_HTML[] =
     "<div style='text-align:left;background:#232019;border:1px solid #332f28;"
     "border-radius:10px;padding:14px 16px;margin:12px 0'>"
-    "<h3 style='margin:0 0 6px'>Let's set up your Claude Code Meter</h3>"
+    "<h3 style='margin:0 0 6px'>Let's set up your codeMeter</h3>"
     "<p style='margin:0 0 10px;color:#bdb7ad'>About 2 minutes &mdash; you'll "
     "need a computer too.</p>"
     "<p style='margin:6px 0'><b>1.</b> On a computer, open "
@@ -117,7 +117,7 @@ static void handleCredRoute() {
 
   if (secrets_is_configured()) {       // WiFi already done -> fully paired
     cred_reply(200, "All set",
-               "Your Claude Code Meter is restarting and will start "
+               "Your codeMeter is restarting and will start "
                "showing your usage.");
     delay(900);
     ESP.restart();
@@ -143,7 +143,7 @@ void wifi_portal_onboard() {
   wifiManager.setSaveConfigCallback(onWifiSaved);
   wifiManager.setAPCallback(onConfigModeCallback);
   wifiManager.setWebServerCallback(registerCredRoute);   // adds GET /cred
-  wifiManager.setTitle("Claude Code Meter");
+  wifiManager.setTitle("codeMeter");
   wifiManager.setClass("invert");                  // dark theme
   wifiManager.setCustomHeadElement(PORTAL_CSS);    // device-matched styling
   wifiManager.setCustomMenuHTML(MENU_HTML);        // first-run instructions

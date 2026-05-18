@@ -18,12 +18,13 @@ We adopt the Anthropic / Claude visual language (per upstream Clawdmeter), keepi
 ```text
 Primary (Claude orange):     #DA7756   (RGB565: 0xDBAA)
 Background (deep charcoal):  #1A1815   (RGB565: 0x18E3)
-Surface (panel bg, slightly lighter): #26221E (RGB565: 0x21A3)
+Surface (panel bg, slightly lighter): #26221E (RGB565: 0x2103)
 Text primary (warm white):   #F5F0E8   (RGB565: 0xFF9D)
 Text secondary (warm gray):  #8A8780   (RGB565: 0x8C50)
 Success (calm green):        #6EA47A   (RGB565: 0x6D2F)
 Warning (amber):             #E0A050   (RGB565: 0xE52A)
 Error (muted red):           #C25450   (RGB565: 0xC2AA)
+Time marker (warm gray):     #8A8780   (RGB565: 0x8C50)
 ```
 
 **Rule:** Never use raw hex literals in `ui.ino` other than these constants. They live in `m5clawd/config.h` as `COLOR_PRIMARY`, `COLOR_BG`, etc. (RGB565 `uint16_t` values — what `M5.Lcd` draw calls expect).

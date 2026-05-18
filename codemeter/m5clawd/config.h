@@ -38,12 +38,17 @@
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "time.nist.gov"
 
+// Fallback local timezone, POSIX TZ format — used to render local clock times
+// (the header clock, the absolute reset time) only when the boot-time IP-based
+// timezone detection fails. NTP itself runs in UTC; this just shifts display.
+#define TZ_POSIX "PST8PDT,M3.2.0,M11.1.0"
+
 // ---------------------------------------------------------------------------
 // WiFi provisioning (captive portal)
 // ---------------------------------------------------------------------------
 // Soft-AP SSID base. The last 6 hex digits of the MAC are appended at runtime,
-// e.g. "ClaudeCodeMeter-A1B2C3".
-#define WIFI_AP_SSID_PREFIX "ClaudeCodeMeter"
+// e.g. "codeMeter-A1B2C3".
+#define WIFI_AP_SSID_PREFIX "codeMeter"
 
 // Where the user gets the host pairing helper (ADR 010). Shown on the device
 // and in the captive portal so a first-time user knows where to go.
@@ -95,12 +100,13 @@
 // ---------------------------------------------------------------------------
 #define COLOR_PRIMARY   0xDBAA  // Claude orange   #DA7756
 #define COLOR_BG        0x18E3  // deep charcoal   #1A1815
-#define COLOR_SURFACE   0x21A3  // panel surface   #26221E
+#define COLOR_SURFACE   0x2103  // panel surface   #26221E
 #define COLOR_TEXT      0xFF9D  // warm white      #F5F0E8
 #define COLOR_TEXT_DIM  0x8C50  // warm gray       #8A8780
 #define COLOR_SUCCESS   0x6D2F  // calm green      #6EA47A
 #define COLOR_WARNING   0xE52A  // amber           #E0A050
 #define COLOR_ERROR     0xC2AA  // muted red       #C25450
+#define COLOR_TIME      0x8C50  // warm gray       #8A8780 (elapsed-time marker)
 
 // ---------------------------------------------------------------------------
 // UI — layout (320x240 panel)
@@ -161,6 +167,8 @@ void ui_show_connecting();
 void ui_show_status();
 void ui_show_usage(const UsageData &d);
 void ui_update_usage(const UsageData &d);
+void ui_show_brightness(int level, int count);
+void ui_easter_snake();
 void ui_show_provisioning();
 void ui_show_wifi_error();
 void ui_show_reset_confirm();

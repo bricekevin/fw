@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Claude Code Meter — Pair your device</title>
+<title>codeMeter — Pair your device</title>
 <style>
   :root{
     color-scheme:dark;
@@ -97,11 +97,11 @@
 <main>
 
   <header>
-    <div class="logo">Claude Code Meter</div>
+    <div class="logo">codeMeter</div>
     <div class="sub">Pair your device</div>
   </header>
   <p class="intro">
-    Two short steps and your Claude Code Meter is ready. The device should
+    Two short steps and your codeMeter is ready. The device should
     already be showing its setup screen.
   </p>
 
@@ -144,7 +144,7 @@
     <div class="sbody qrwrap">
       On your device's setup page, paste the token into the
       <b>Claude token</b> field next to your WiFi details. Or scan this QR
-      with a phone that's on the <b>ClaudeCodeMeter-XXXXXX</b> setup WiFi.
+      with a phone that's on the <b>codeMeter-XXXXXX</b> setup WiFi.
       <div class="qr empty" id="qr">The QR code appears here once you paste a token.</div>
       <div class="qrcap" id="qrcap"></div>
     </div>
@@ -157,7 +157,7 @@
   </div>
 
   <footer>
-    Claude Code Meter is a personal, open hardware project. Not affiliated with Anthropic.
+    codeMeter is a personal, open hardware project. Not affiliated with Anthropic.
   </footer>
 
 </main>
@@ -2461,7 +2461,7 @@ var qrcode = function() {
 }));
 </script>
 <script>
-// --- Claude Code Meter pairing page logic ---------------------------------
+// --- codeMeter pairing page logic ---------------------------------
 // The QR encodes a URL on the device's fixed soft-AP address; scanning it
 // with a phone (still on the setup WiFi) hands the token to the
 // device. Everything here runs in the browser — the token is never sent out.

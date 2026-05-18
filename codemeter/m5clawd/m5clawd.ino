@@ -37,6 +37,13 @@ static Screen currentScreen     = SCREEN_SPLASH;
 static bool   backlightOn           = true;
 static bool   resetConfirmShown     = false;
 static bool   reonboardConfirmShown = false;
+static bool   statusHeld            = false;   // button A held -> Status peek
+static bool   displayInverted       = false;   // button A tap -> light/dark
+
+// Screen-brightness levels cycled by a button-B tap (M5.Lcd 0..255).
+static const uint8_t BRIGHTNESS_LEVELS[] = {40, 110, 180, 255};
+static const int     BRIGHTNESS_COUNT    = 4;
+static int           brightnessIdx       = 2;   // boot at ~180
 
 // --- Poll-loop state (visible to ui.ino) -----------------------------------
 UsageData       g_usage      = {};   // latest usage; status UNKNOWN until first poll
@@ -80,7 +87,7 @@ static bool station_connect() {
 
 void setup() {
   M5.begin(true, false, true);             // LCD on, SD off, Serial on
-  M5.Lcd.setBrightness(150);
+  M5.Lcd.setBrightness(BRIGHTNESS_LEVELS[brightnessIdx]);
   Serial.begin(115200);
   Serial.println();
   Serial.printf("M5Clawd v%s booting\n", FW_VERSION);
@@ -140,7 +147,7 @@ void setup() {
 // --- Buttons ----------------------------------------------------------------
 static void backlight_toggle() {
   backlightOn = !backlightOn;
-  M5.Lcd.setBrightness(backlightOn ? 150 : 0);
+  M5.Lcd.setBrightness(backlightOn ? BRIGHTNESS_LEVELS[brightnessIdx] : 0);
 }
 
 static void show_current_screen() {
@@ -158,13 +165,38 @@ static void show_current_screen() {
 }
 
 static void buttons_poll() {
-  // Button A — cycle Splash -> Usage -> Status.
-  if (M5.BtnA.wasPressed()) {
-    currentScreen = (Screen)((currentScreen + 1) % SCREEN_COUNT);
+  // Easter egg — hold all three buttons together for ~0.8 s.
+  if (M5.BtnA.pressedFor(800) && M5.BtnB.pressedFor(800) &&
+      M5.BtnC.pressedFor(800)) {
+    ui_easter_snake();
+    do { M5.update(); delay(20); }              // wait out the held buttons
+    while (M5.BtnA.isPressed() || M5.BtnB.isPressed() || M5.BtnC.isPressed());
+    M5.update();                                // consume the release edges
+    statusHeld = resetConfirmShown = reonboardConfirmShown = false;
+    currentScreen = SCREEN_USAGE;
     show_current_screen();
+    return;
   }
 
-  // Button B — short press forces an immediate poll; a long-press (5 s, then
+  // Button A — a short press toggles light/dark (display inversion); a
+  // press-and-hold (0.7 s) peeks the Status screen, releasing returns to Usage.
+  if (M5.BtnA.pressedFor(700) && !statusHeld) {
+    statusHeld = true;
+    currentScreen = SCREEN_STATUS;
+    show_current_screen();
+  }
+  if (M5.BtnA.wasReleased()) {
+    if (statusHeld) {
+      statusHeld = false;
+      currentScreen = SCREEN_USAGE;
+      show_current_screen();
+    } else {
+      displayInverted = !displayInverted;
+      M5.Lcd.invertDisplay(displayInverted);
+    }
+  }
+
+  // Button B — a tap cycles the screen brightness; a long-press (5 s, then
   // +2 s to commit — mirroring C) re-runs OAuth onboarding without wiping the
   // WiFi credentials (Task 3.4, the "change credential" gesture).
   if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !reonboardConfirmShown) {
@@ -182,8 +214,13 @@ static void buttons_poll() {
       reonboardConfirmShown = false;         // released early -> aborted
       show_current_screen();
     } else {
-      Serial.println("[poll] manual refresh (button B)");
-      nextPollAtMs = millis();
+      // Tap -> next brightness level, with a brief on-screen readout.
+      brightnessIdx = (brightnessIdx + 1) % BRIGHTNESS_COUNT;
+      backlightOn = true;
+      M5.Lcd.setBrightness(BRIGHTNESS_LEVELS[brightnessIdx]);
+      ui_show_brightness(brightnessIdx, BRIGHTNESS_COUNT);
+      delay(700);
+      show_current_screen();
     }
   }
 
