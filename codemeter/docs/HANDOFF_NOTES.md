@@ -1,9 +1,106 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-17 (Session 19)
+**Last Updated:** 2026-05-18 (Session 20)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 20 — 2026-05-17 / 05-18
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Focus:** `/7_go` — a long iterative Usage-screen overhaul (flash + photo loop),
+a product rename, timezone auto-detection, a button remap, and an easter egg.
+
+### What happened
+
+1. **Usage screen redesigned** (`ui.ino`). Text-only layout → card-based: a
+   32px header, then two rounded `COLOR_SURFACE` cards (SESSION / WEEKLY).
+   Each card: title, percentage (`FSSB18`), a **pill progress bar**, a thin
+   **elapsed-time marker** under the bar, and a reset line. Per-field redraw
+   cache preserved.
+
+2. **Header** — single line: "codeMeter" wordmark left; a small poll-status
+   **dot** + 4-bar **WiFi-signal icon** + the **local clock** on the right.
+   (The earlier two-line badge/"updated" header clipped at the top-right.)
+
+3. **Rename "Claude Code Meter" → "codeMeter"** (user-facing only). `ui.ino`
+   splash + headers, `wifi_portal.ino` portal text/title, `config.h`
+   `WIFI_AP_SSID_PREFIX`, `pairing/index.html`. The poller's Claude Code
+   identity (`system` prompt, user-agent) is **unchanged** — protocol
+   requirement for the unified rate-limit headers, not branding.
+
+4. **COLOR_SURFACE bug fixed.** It was `0x21A3` — a bad hex conversion that
+   rendered the cards bright green. Correct value is `0x2103` (#26221E).
+   Fixed in `config.h` and the `docs/3_DESIGN_SYSTEM.md` table.
+
+5. **Pace check + elapsed-time marker.** A thin marker under each bar shows
+   the fraction of the window elapsed (grey track + filled portion). The
+   "danger" model went through three iterations and landed as a **3-tier
+   pace level** (`usg_pace_level()`): budget-left% vs time-left%, with a
+   10-point buffer. Tier 0 normal, tier 1 amber (ahead of pace, in buffer),
+   tier 2 red (10+ points ahead). The number, the marker, and the card
+   outline all follow grey → amber → red. `USG_SESSION_WINDOW_S` /
+   `USG_WEEKLY_WINDOW_S` / `USG_DANGER_MARGIN` in `ui.ino`.
+
+6. **Timezone auto-detection** (`poller.ino`). `poller_begin()` now does a
+   plain-HTTP GET to `ip-api.com/json/?fields=offset` and builds a
+   fixed-offset POSIX TZ from the result. Falls back to `TZ_POSIX` in
+   `config.h` (US Pacific) if the lookup fails. Caveat: fixed offset — does
+   not self-adjust at a DST change; it re-detects each boot.
+
+7. **Button remap** (`m5clawd.ino`). A = tap toggles light/dark
+   (`M5.Lcd.invertDisplay`), press-and-hold (0.7s) peeks Status. B = tap
+   cycles 4 brightness levels with a sun-icon overlay (`ui_show_brightness`),
+   long-press still re-onboards. C unchanged. Manual-poll-on-B was dropped.
+
+8. **Easter egg** (`ui_easter_snake`). Hold all three buttons ~0.8s: a thin
+   snake led by a 13×13 pixel-art Claude spark wanders the panel (randomised
+   DFS), eating it **orange**, then a second pass eats it to **black**, then
+   the screen repaints. `CLAUDE_SPRITE[]` bitmap in `ui.ino`.
+
+9. **Research only (no code):** options for Enterprise / API / OpenAI user
+   types — see "Notes for next session".
+
+### Files changed
+
+```text
+m5clawd/ui.ino           — Usage screen rewrite, header, pace tiers, elapsed marker,
+                           brightness overlay, easter-egg snake, COLOR/rename edits
+m5clawd/m5clawd.ino      — button remap (A/B), brightness state, easter-egg trigger
+m5clawd/poller.ino       — IP-based timezone detection
+m5clawd/config.h         — COLOR_SURFACE fix, COLOR_TIME, TZ_POSIX, SSID rename, prototypes
+m5clawd/wifi_portal.ino  — codeMeter rename (portal text + title)
+pairing/index.html       — codeMeter rename
+docs/3_DESIGN_SYSTEM.md  — COLOR_SURFACE hex fix, COLOR_TIME added
+```
+
+### Validated
+
+- `arduino-cli compile --profile m5clawd` — clean, no warnings, every change.
+- Flashed + photographed repeatedly on the M5Stack (`/dev/cu.usbserial-02132522`).
+  Device polling confirmed (`code=200`, live session/weekly values). Final
+  on-device states observed correct; easter egg not yet photo-verified.
+
+### Notes for next session
+
+- **`main` is badly stale** (pre-poller). All real work is on branch
+  `phase-2-20260515` in worktree `../theClaw-phase-2-20260515`. The branch is
+  **local-only — never pushed.** A merge down to `main` is overdue.
+- The `USG_*` `#define`s at the top of the Usage section in `ui.ino` are the
+  layout knobs.
+- Supporting more user types (researched, not built): an **API-cost mode**
+  (Admin Usage & Cost API + a monthly budget, $ instead of %) is the clean
+  additive path and could be multi-provider (Anthropic + OpenAI share the
+  shape). Enterprise per-seat ($/$400) needs the org's Primary Owner to mint
+  an org-wide key — awkward for an individual; better org-admin-deployed.
+  Both are slow (hours-stale) and the credential is high-privilege — a real
+  concern for plaintext NVS. Worth a new ADR if pursued. No live-meter
+  equivalent exists for OpenAI consumer subscriptions.
+- An in-captive-portal QR camera scanner is **not feasible** (camera needs
+  HTTPS/secure-context; the soft-AP is plain HTTP, and captive webviews
+  block the camera). The QR is meant for the phone's native camera app.
 
 ---
 
