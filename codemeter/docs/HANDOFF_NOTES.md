@@ -59,13 +59,26 @@ desk environment.
 - `flash.sh` still defaults to 921600 baud, which keeps timing out; flashed at
   115200 again this session (see Session 21's known-issues note).
 
+4. **Station-connect diagnostics** (`m5clawd.ino`). After onboarding, the
+   device failed to join home WiFi. Added serial diagnostics: `station_connect`
+   now logs the `wl_status_t` reason per attempt, and on total failure
+   `wifi_diagnose_failure()` reads the stored SSID (`esp_wifi_get_config`) and
+   scans the band to report whether the saved network is in range.
+
+   **Finding:** the device is paired to SSID `Brice Long Range`, but status 1
+   (`WL_NO_SSID_AVAIL`) on every attempt — the scan finds 4 other (weak,
+   -71..-78 dBm) networks but not `Brice Long Range`. Not a firmware bug:
+   the device is out of 2.4 GHz range of that AP from its current location.
+   Pending: user to confirm the band of `Brice Long Range` and move the
+   device into coverage.
+
 ### Files changed
 
 ```text
 m5clawd/wifi_portal.ino   — pick_clear_channel(); AP channel pin; max TX power;
                             TOKEN_HELP_HTML; "Setup Device" in MENU_HTML
 m5clawd/ui.ino            — onboarding STEP indicator (orange ch1 / green ch2)
-m5clawd/m5clawd.ino       — tokenHelp WiFiManagerParameter global
+m5clawd/m5clawd.ino       — tokenHelp param; WiFi connect diagnostics
 m5clawd/wm_strings_en.h   — menu button "Configure WiFi" -> "Setup Device"
 ```
 

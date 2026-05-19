@@ -18,6 +18,7 @@
 
 #include <M5Stack.h>
 #include <WiFi.h>
+#include <esp_wifi.h>           // esp_wifi_get_config — read the stored SSID
 #include <WiFiClientSecure.h>   // poller.ino — TLS to api.anthropic.com
 #include <HTTPClient.h>         // poller.ino — HTTPS POST
 #include <SPIFFS.h>
@@ -65,6 +66,66 @@ static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 30000;
 // post-onboarding boot needed a manual power-cycle): a short settle delay
 // before WiFi.begin() lets the radio recover from the AP/portal teardown, and
 // the connect is retried up to three times before giving up.
+// Map a wl_status_t to a short human reason for the serial log.
+static const char *wifi_status_str(int s) {
+  switch (s) {
+    case WL_NO_SSID_AVAIL:   return "SSID not visible (out of range / 5 GHz-only)";
+    case WL_CONNECT_FAILED:  return "auth rejected (wrong password?)";
+    case WL_CONNECTION_LOST: return "connection lost";
+    case WL_DISCONNECTED:    return "disconnected / still trying";
+    case WL_IDLE_STATUS:     return "idle";
+    case WL_CONNECTED:       return "connected";
+    default:                 return "unknown";
+  }
+}
+
+// The home-WiFi SSID saved during onboarding. WiFi.SSID() only reports a name
+// once associated, so read the stored station config directly.
+static String stored_ssid() {
+  wifi_config_t conf;
+  if (esp_wifi_get_config(ESP_IF_WIFI_STA, &conf) == ESP_OK) {
+    return String(reinterpret_cast<const char *>(conf.sta.ssid));
+  }
+  return String();
+}
+
+// On a total connect failure, scan the band and report whether the saved
+// network is even in range — the fastest way to tell "wrong password" from
+// "wrong band / out of range" without an LCD.
+static void wifi_diagnose_failure() {
+  String want = stored_ssid();
+  Serial.printf("[wifi] giving up — saved SSID '%s'. Scanning...\n",
+                want.c_str());
+  // Stop the pending connect first — a scan launched mid-association just
+  // fails (returns a negative code) and looks like an empty band.
+  WiFi.disconnect(false, false);
+  delay(300);
+  int n = WiFi.scanNetworks();
+  if (n < 0) {                             // WIFI_SCAN_FAILED / _RUNNING
+    Serial.printf("[wifi] scan returned %d, retrying once\n", n);
+    delay(800);
+    n = WiFi.scanNetworks();
+  }
+  Serial.printf("[wifi] scan found %d network(s):\n", n < 0 ? 0 : n);
+  bool seen = false;
+  for (int i = 0; i < n; ++i) {
+    bool match = want.length() && WiFi.SSID(i) == want;
+    seen |= match;
+    Serial.printf("[wifi]   %-24s ch%-2d %4ddBm%s\n",
+                  WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i),
+                  match ? "  <-- saved network" : "");
+  }
+  WiFi.scanDelete();
+  if (want.length() == 0) {
+    Serial.println("[wifi] no SSID stored — onboarding may not have saved it");
+  } else if (seen) {
+    Serial.println("[wifi] saved network IS in range -> likely a wrong password");
+  } else {
+    Serial.println("[wifi] saved network NOT in range -> off, out of range, or "
+                   "a 5 GHz-only band (ESP32 is 2.4 GHz only)");
+  }
+}
+
 static bool station_connect() {
   WiFi.mode(WIFI_STA);
   for (int attempt = 1; attempt <= 3; ++attempt) {
@@ -81,8 +142,11 @@ static bool station_connect() {
       delay(200);
     }
     if (WiFi.status() == WL_CONNECTED) return true;
-    Serial.printf("[wifi] connect attempt %d/3 timed out\n", attempt);
+    int st = WiFi.status();
+    Serial.printf("[wifi] connect attempt %d/3 timed out — status %d (%s)\n",
+                  attempt, st, wifi_status_str(st));
   }
+  wifi_diagnose_failure();
   return false;
 }
 
