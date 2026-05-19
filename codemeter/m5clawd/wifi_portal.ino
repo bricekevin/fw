@@ -46,8 +46,11 @@ void WiFiEvent(WiFiEvent_t event, system_event_info_t info) {
   }
 }
 
-// Fired by WiFiManager when the Stage 1 configuration portal opens.
+// Fired by WiFiManager when the Stage 1 configuration portal opens. The radio
+// is now in soft-AP mode, so this is the point to pin TX power to maximum —
+// a stronger beacon is easier to see and join in a noisy desk environment.
 void onConfigModeCallback(WiFiManager *myWiFiManager) {
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   ui_show_provisioning();
 }
 
@@ -133,6 +136,50 @@ static void registerCredRoute() {
   wifiManager.server->on("/cred", handleCredRoute);
 }
 
+// --- Soft-AP channel selection ---------------------------------------------
+// ESP32's soft-AP "auto" channel is not a real clear-channel scan — it just
+// lands on channel 1. In a crowded 2.4 GHz environment (neighbouring routers,
+// plus the USB-3 and monitor noise around a desk) that leaves the onboarding
+// AP hard to see and slow to join. So scan the band first and pick the
+// quietest of the three non-overlapping channels (1 / 6 / 11).
+//
+// 2.4 GHz channels sit 5 MHz apart but are ~22 MHz wide, so a neighbour bleeds
+// onto channels up to 4 away. Each nearby AP is scored against every candidate
+// with a falloff by channel distance, weighted by signal strength so a strong
+// neighbour counts for more than a faint one; the lowest total wins.
+//
+// The pick is made once per portal session, not hopped live: a phone that is
+// mid-join must not have the AP move channels underneath it. Re-running this
+// each time the onboarding loop re-opens the portal is enough to adapt.
+static int pick_clear_channel() {
+  const int candidates[3] = {1, 6, 11};
+  // Overlap weight indexed by |ap_channel - candidate|, 0..4; 0 beyond that.
+  static const float overlap[5] = {1.0f, 0.8f, 0.6f, 0.4f, 0.2f};
+  float score[3] = {0.0f, 0.0f, 0.0f};
+
+  WiFi.mode(WIFI_STA);                       // scan needs the station radio
+  int found = WiFi.scanNetworks();
+  for (int i = 0; i < found; i++) {
+    int ch = WiFi.channel(i);
+    float strength = WiFi.RSSI(i) + 100.0f;  // -100 dBm -> 0, -30 dBm -> 70
+    if (strength < 0.0f) strength = 0.0f;
+    for (int c = 0; c < 3; c++) {
+      int dist = abs(ch - candidates[c]);
+      if (dist <= 4) score[c] += strength * overlap[dist];
+    }
+  }
+  WiFi.scanDelete();
+
+  int best = 1;                              // ties / empty scan -> channel 6
+  for (int c = 0; c < 3; c++) {
+    if (score[c] < score[best]) best = c;
+  }
+  Serial.printf("[portal] channel scan: %d AP(s)  ch1=%.0f ch6=%.0f ch11=%.0f"
+                "  -> ch%d\n",
+                found, score[0], score[1], score[2], candidates[best]);
+  return candidates[best];
+}
+
 // --- Onboarding — single soft-AP stage (ADR 010) ---------------------------
 // Blocking captive portal. WiFiManager collects the home-WiFi credentials;
 // the /cred route ingests the token. startConfigPortal() returns when WiFi is
@@ -162,6 +209,7 @@ void wifi_portal_onboard() {
   WiFi.onEvent(WiFiEvent);
 
   while (!(secrets_is_configured() && secrets_has_token())) {
+    wifiManager.setWiFiAPChannel(pick_clear_channel());   // quietest of 1/6/11
     wifiManager.startConfigPortal(ap_ssid().c_str());
   }
 

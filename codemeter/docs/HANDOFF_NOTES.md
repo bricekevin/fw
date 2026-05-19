@@ -1,9 +1,59 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-19 (Session 21)
+**Last Updated:** 2026-05-19 (Session 22)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 22 — 2026-05-19
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Focus:** `/7_go` — make the onboarding soft-AP easier to find and join.
+
+### What happened
+
+The soft-AP was hard to see and slow to join near other computers. Root
+cause: ESP32's soft-AP "auto" channel is not a real clear-channel scan — it
+just lands on channel 1, fighting for the most crowded slot in a noisy 2.4 GHz
+desk environment.
+
+1. **Clear-channel selection** (`wifi_portal.ino`). New `pick_clear_channel()`
+   runs a `WiFi.scanNetworks()` before each portal session, scores channels
+   1 / 6 / 11 by neighbour interference (RSSI-weighted, with ±4-channel
+   overlap falloff), and starts the soft-AP on the quietest via
+   `setWiFiAPChannel()`. Picked once per session, not hopped live — a phone
+   mid-join must not have the AP move underneath it. The onboarding loop
+   re-scans each time it re-opens the portal, so it adapts.
+
+2. **Max TX power** (`wifi_portal.ino`). `onConfigModeCallback()` now pins
+   `WiFi.setTxPower(WIFI_POWER_19_5dBm)` when the AP comes up.
+
+### Testing
+
+- Compiles clean on core 1.0.4 (87% flash), no warnings.
+- Verified live on device `codeMeter-A737E4`: booted into onboarding, serial
+  showed `channel scan: 4 AP(s) ch1=0 ch6=20 ch11=59 -> ch1`, soft-AP started
+  on the chosen channel. The scan logic works on real hardware.
+
+### Known issues
+
+- Power brownout (marginal USB port / cable) is a separate, independent cause
+  of fast-fail joins — not addressed here. A proper 5V wall charger is the fix.
+- `flash.sh` still defaults to 921600 baud, which keeps timing out; flashed at
+  115200 again this session (see Session 21's known-issues note).
+
+### Files changed
+
+```text
+m5clawd/wifi_portal.ino   — pick_clear_channel(); AP channel pin; max TX power
+```
+
+### Notes for next session
+
+- Work is on branch `go-softap-clear-channel` (off local `main`). Local `main`
+  is 58 commits ahead of `origin/main` — the repo is effectively local-only.
 
 ---
 
