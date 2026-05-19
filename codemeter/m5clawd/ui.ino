@@ -159,15 +159,6 @@ static int usg_pace_level(uint8_t cur_pct, uint32_t reset_s,
   return 0;
 }
 
-// Threshold colors: a calm orange under 70%, amber as the window fills, red
-// once it is nearly spent — an at-a-glance health signal.
-static uint16_t usg_bar_color(uint8_t pct, bool stale) {
-  if (stale)      return COLOR_TEXT_DIM;
-  if (pct >= 90)  return COLOR_ERROR;
-  if (pct >= 70)  return COLOR_WARNING;
-  return COLOR_PRIMARY;
-}
-
 // The poll-status dot color: green ok, amber connecting / rate-limited, red
 // for any hard error.
 static uint16_t usg_status_color(UsageData::Status st) {
@@ -259,8 +250,9 @@ static void usg_draw_card_title(int cardY, const char *title) {
   M5.Lcd.drawString(title, USG_CARD_X + USG_PAD, cardY + USG_TITLE_DY);
 }
 
-// The card outline — amber when the window is ahead of pace, red when clearly
-// overspending, otherwise the surface color (invisible, flush with the card).
+// The card alert state — the outline plus a top-right corner dot. Amber when
+// the window is ahead of pace, red when clearly overspending; at normal pace
+// both are the surface color (invisible, flush with the card).
 static void usg_draw_card_frame(int cardY, int pace) {
   uint16_t c = pace >= 2 ? COLOR_ERROR
              : pace == 1 ? COLOR_WARNING
@@ -269,6 +261,7 @@ static void usg_draw_card_frame(int cardY, int pace) {
                        USG_CARD_R, c);
   M5.Lcd.drawRoundRect(USG_CARD_X + 1, cardY + 1, USG_CARD_W - 2,
                        USG_CARD_H - 2, USG_CARD_R - 1, c);
+  M5.Lcd.fillCircle(USG_CARD_X + USG_CARD_W - 18, cardY + 15, 6, c);
 }
 
 // True if there are real numbers worth showing: either a poll has succeeded
@@ -313,7 +306,10 @@ static void usg_draw_value(int cardY, const UsageData &d, uint8_t pct,
   snprintf(num, sizeof(num), "%u%%", (unsigned)pct);
   M5.Lcd.setTextColor(numCol, COLOR_SURFACE);
   M5.Lcd.drawString(num, numX, rowY);
-  usg_draw_bar(barX, barY, barW, USG_BAR_H, pct, usg_bar_color(pct, d.stale));
+  // The bar fill is always Claude orange (dimmed when stale); warning colour
+  // lives in the number, marker, and outline via the pace tiers.
+  usg_draw_bar(barX, barY, barW, USG_BAR_H, pct,
+               d.stale ? COLOR_TEXT_DIM : COLOR_PRIMARY);
 
   // Elapsed-time marker — fraction of the window already gone, drawn to the
   // same scale as the bar: a dark track (matching the bar's track) with a grey
