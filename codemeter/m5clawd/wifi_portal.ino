@@ -81,8 +81,23 @@ static const char MENU_HTML[] =
     "need a computer too.</p>"
     "<p style='margin:6px 0'><b>1.</b> On a computer, open "
     "<b>" WEB_HELPER_URL "</b> to get your Claude token.</p>"
-    "<p style='margin:6px 0'><b>2.</b> Tap <b>Configure WiFi</b> &mdash; enter "
+    "<p style='margin:6px 0'><b>2.</b> Tap <b>Setup Device</b> &mdash; enter "
     "your home WiFi, paste the token, and Save.</p>"
+    "</div>";
+
+// Instructions injected just above the Claude-token input on the setup page.
+// Spells out the exact terminal command that mints the token, so the user is
+// never left guessing what to paste (registered as a label-only parameter).
+static const char TOKEN_HELP_HTML[] =
+    "<div style='text-align:left;background:#232019;border:1px solid #332f28;"
+    "border-radius:10px;padding:12px 14px;margin:14px 0 4px'>"
+    "<p style='margin:0 0 8px;color:#bdb7ad'>To get your Claude token, run "
+    "this in a terminal on your computer:</p>"
+    "<code style='display:block;background:#1A1815;border:1px solid #3a352c;"
+    "border-radius:6px;padding:9px 11px;color:#DA7756;font-size:1.05em'>"
+    "claude setup-token</code>"
+    "<p style='margin:8px 0 0;color:#bdb7ad'>Copy what it prints, then paste "
+    "it into the field below.</p>"
     "</div>";
 
 // --- /cred route — token ingest from the pairing-helper QR -----------------
@@ -201,6 +216,11 @@ void wifi_portal_onboard() {
 
   // Claude-token field — rendered on the WiFi page (_paramsInWifi is on by
   // default), so the user enters WiFi and the token in one step (ADR 010).
+  // A label-only parameter above it carries the "run claude setup-token"
+  // instructions; parameters render in registration order.
+  new (&tokenHelp) WiFiManagerParameter(TOKEN_HELP_HTML);
+  wifiManager.addParameter(&tokenHelp);
+
   new (&tokenField) WiFiManagerParameter(
       PARAM_ID_TOKEN, "Claude token", "", 256,
       "placeholder=\"paste your claude setup-token output\"");

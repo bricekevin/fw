@@ -561,28 +561,33 @@ void ui_easter_snake() {
 }
 
 // --- Onboarding screens ----------------------------------------------------
-// The two onboarding screens share one template: a header band with the
-// "codeMeter" name, a large centred QR, and two detail lines.
-// Identical placement keeps the QR big and stationary. The captive-portal
-// page (not the LCD) carries the full step-by-step guide.
-static void ui_onboard_screen(const char *qr, uint8_t qr_version,
+// The two onboarding screens share one template: a header band that doubles
+// as a STEP indicator, a large centred QR, and two detail lines. The band
+// colour flips from orange (step 1, waiting for a phone) to green (step 2,
+// phone connected) so it is obvious at a glance which step the user is on.
+// Identical QR placement keeps it big and stationary across the two screens.
+static void ui_onboard_screen(int step, const char *qr, uint8_t qr_version,
                               const String &line1, const String &line2) {
   M5.Lcd.fillScreen(COLOR_BG);
 
-  // Header band — the product name, centred.
-  const int HDR = 22;
-  M5.Lcd.fillRect(0, 0, 320, HDR, COLOR_SURFACE);
+  // Header band = step indicator: orange while waiting for the phone to join
+  // (step 1), green once it has connected (step 2).
+  const int HDR = 24;
+  uint16_t band = (step >= 2) ? COLOR_SUCCESS : COLOR_PRIMARY;
+  M5.Lcd.fillRect(0, 0, 320, HDR, band);
   M5.Lcd.setFreeFont(FSS9);
-  M5.Lcd.setTextColor(COLOR_PRIMARY);
-  M5.Lcd.setTextDatum(MC_DATUM);
-  M5.Lcd.drawString("codeMeter", 160, HDR / 2);
+  M5.Lcd.setTextColor(COLOR_BG);              // dark text reads on both colours
+  M5.Lcd.setTextDatum(ML_DATUM);
+  M5.Lcd.drawString("codeMeter", 8, HDR / 2);
+  M5.Lcd.setTextDatum(MR_DATUM);
+  M5.Lcd.drawString(step >= 2 ? "STEP 2 of 2" : "STEP 1 of 2", 312, HDR / 2);
 
   // Large centred QR — fills most of the panel for easy scanning.
   const int qr_w = 168;
-  M5.Lcd.qrcode(qr, (320 - qr_w) / 2, HDR + 8, qr_w, qr_version);
+  M5.Lcd.qrcode(qr, (320 - qr_w) / 2, HDR + 6, qr_w, qr_version);
 
   // Two detail lines below the QR.
-  int y = HDR + 8 + qr_w + 6;
+  int y = HDR + 6 + qr_w + 6;
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.setTextDatum(TC_DATUM);
   M5.Lcd.setTextColor(COLOR_TEXT);
@@ -591,20 +596,20 @@ static void ui_onboard_screen(const char *qr, uint8_t qr_version,
   M5.Lcd.drawString(line2, 160, y + 16);
 }
 
-// First screen — join the device's setup WiFi. QR is a WIFI: join string for
-// the open soft-AP; the SSID is shown too for joining by hand.
+// Step 1 — join the device's setup WiFi. QR is a WIFI: join string for the
+// open soft-AP; the SSID is shown too for joining by hand.
 void ui_show_provisioning() {
   String ssid = ap_ssid();
   String qr = "WIFI:T:nopass;S:" + ssid + ";;";
-  ui_onboard_screen(qr.c_str(), 4,
-                    ssid, "Join this Wi-Fi, then open the setup page");
+  ui_onboard_screen(1, qr.c_str(), 4,
+                    ssid, "Join this Wi-Fi to start setup");
 }
 
-// Second screen — a phone has joined the soft-AP. The QR opens the setup page,
-// which carries the full step-by-step instructions.
+// Step 2 — a phone has joined the soft-AP. The QR opens the setup page, which
+// carries the full step-by-step instructions.
 void ui_portal_client_connected() {
-  ui_onboard_screen("http://192.168.4.1/wifi", 4,
-                    "192.168.4.1", "Open this address to set up the device");
+  ui_onboard_screen(2, "http://192.168.4.1/wifi", 4,
+                    "192.168.4.1", "Open this on your phone to finish");
 }
 
 // Bottom-of-screen error banner — shown when the portal rejects a bad key.

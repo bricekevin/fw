@@ -31,6 +31,7 @@
 Preferences          preferences;
 WiFiManager          wifiManager;
 WiFiManagerParameter tokenField;           // captive-portal WiFi page — Claude token field
+WiFiManagerParameter tokenHelp;            // label-only — "run claude setup-token" hint
 
 enum Screen { SCREEN_SPLASH, SCREEN_USAGE, SCREEN_STATUS, SCREEN_COUNT };
 static Screen currentScreen     = SCREEN_SPLASH;

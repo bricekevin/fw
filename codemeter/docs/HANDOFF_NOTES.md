@@ -30,12 +30,27 @@ desk environment.
 2. **Max TX power** (`wifi_portal.ino`). `onConfigModeCallback()` now pins
    `WiFi.setTxPower(WIFI_POWER_19_5dBm)` when the AP comes up.
 
+3. **Onboarding clarity pass** — three portal/UX changes:
+   - The captive-portal menu button "Configure WiFi" is now "Setup Device"
+     (`wm_strings_en.h` MENU_WIFI / MENU_WIFINOSCAN; `MENU_HTML` updated to
+     match).
+   - The Claude-token section of the setup page now shows the exact terminal
+     command (`claude setup-token`) in a styled code block, via a new
+     label-only `tokenHelp` WiFiManagerParameter registered above the token
+     input (`TOKEN_HELP_HTML` in `wifi_portal.ino`, global in `m5clawd.ino`).
+   - The device onboarding screen now has an explicit STEP indicator
+     (`ui.ino` `ui_onboard_screen`): the header band reads "STEP 1 of 2" /
+     "STEP 2 of 2" and flips colour orange -> green the moment a phone joins
+     the soft-AP, so step 2 is unmistakable. QR kept at full size.
+
 ### Testing
 
 - Compiles clean on core 1.0.4 (87% flash), no warnings.
 - Verified live on device `codeMeter-A737E4`: booted into onboarding, serial
-  showed `channel scan: 4 AP(s) ch1=0 ch6=20 ch11=59 -> ch1`, soft-AP started
+  showed `channel scan: 4 AP(s) ch1=0 ch6=15 ch11=69 -> ch1`, soft-AP started
   on the chosen channel. The scan logic works on real hardware.
+- LCD step screens and the portal page changes are not machine-verifiable
+  (no LCD/browser capture here) — pending a visual check by the user.
 
 ### Known issues
 
@@ -47,7 +62,11 @@ desk environment.
 ### Files changed
 
 ```text
-m5clawd/wifi_portal.ino   — pick_clear_channel(); AP channel pin; max TX power
+m5clawd/wifi_portal.ino   — pick_clear_channel(); AP channel pin; max TX power;
+                            TOKEN_HELP_HTML; "Setup Device" in MENU_HTML
+m5clawd/ui.ino            — onboarding STEP indicator (orange ch1 / green ch2)
+m5clawd/m5clawd.ino       — tokenHelp WiFiManagerParameter global
+m5clawd/wm_strings_en.h   — menu button "Configure WiFi" -> "Setup Device"
 ```
 
 ### Notes for next session
