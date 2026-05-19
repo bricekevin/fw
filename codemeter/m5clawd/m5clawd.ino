@@ -126,6 +126,29 @@ static void wifi_diagnose_failure() {
   }
 }
 
+// Boot-time C-hold-to-reset watchdog. station_connect() can block for up to
+// ~90 s before loop() (and the full handleButtons) takes over; without this
+// the device is unresponsive on the "Connecting to WiFi" screen and the user
+// has no way out of a stuck connect. Same hold-then-confirm shape as the
+// in-app gesture: RESET_HOLD_MS to arm the red confirm screen, +2 s to commit.
+static void boot_reset_watch() {
+  static bool armed = false;
+  if (M5.BtnC.pressedFor(RESET_HOLD_MS) && !armed) {
+    armed = true;
+    ui_show_reset_confirm();
+  }
+  if (armed && M5.BtnC.pressedFor(RESET_HOLD_MS + 2000)) {
+    Serial.println("[reset] boot reset gesture -> wiping NVS");
+    secrets_reset();
+    delay(300);
+    ESP.restart();
+  }
+  if (armed && M5.BtnC.wasReleased()) {
+    armed = false;
+    ui_show_connecting();                  // released early -> back to status
+  }
+}
+
 static bool station_connect() {
   WiFi.mode(WIFI_STA);
   for (int attempt = 1; attempt <= 3; ++attempt) {
@@ -139,6 +162,7 @@ static bool station_connect() {
     while (WiFi.status() != WL_CONNECTED &&
            millis() - start < WIFI_CONNECT_TIMEOUT_MS) {
       M5.update();
+      boot_reset_watch();                  // escape hatch before loop() starts
       delay(200);
     }
     if (WiFi.status() == WL_CONNECTED) return true;

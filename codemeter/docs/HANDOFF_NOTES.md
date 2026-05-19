@@ -72,6 +72,14 @@ desk environment.
    Pending: user to confirm the band of `Brice Long Range` and move the
    device into coverage.
 
+5. **Boot-time reset gesture** (`m5clawd.ino`). Discovered while debugging the
+   above: holding C during the "Connecting to WiFi" screen did nothing,
+   because `handleButtons()` runs from `loop()` and `station_connect()`
+   blocks `setup()` for up to ~90 s. Added `boot_reset_watch()` — a minimal
+   C-only watchdog called from inside the connect wait loop, same
+   5 s-arm / +2 s-commit shape as the in-app gesture. The user can now
+   factory-reset out of a stuck connect without unplugging.
+
 ### Files changed
 
 ```text
