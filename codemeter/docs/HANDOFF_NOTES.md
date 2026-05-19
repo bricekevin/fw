@@ -1,9 +1,52 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-18 (Session 20)
+**Last Updated:** 2026-05-19 (Session 21)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 21 — 2026-05-19
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Focus:** Two small Usage-screen tweaks, then flashing fresh devices.
+
+### What happened
+
+1. **Bar fill is always Claude orange** (`ui.ino`). Dropped the raw-percentage
+   threshold colouring of the progress bar (it clashed: a red-pace card could
+   still show an amber bar). `usg_bar_color()` removed. The bar is now plain
+   orange (dimmed when stale); warning colour lives only on the number,
+   elapsed marker, and card outline via the pace tiers.
+
+2. **Per-card alert dot** (`ui.ino`). Each card gets a filled dot in its
+   top-right corner — amber when ahead of pace, red when overspending, hidden
+   at normal pace. Drawn by `usg_draw_card_frame()` alongside the outline.
+
+3. **Flashing / hardware.** The original device's NVS was wiped (it raises
+   `codeMeter-0D0A10`). Flashed two fresh M5Stack Core units —
+   `codeMeter-A737E4` and `codeMeter-137FD8`.
+
+### Known issues
+
+| Issue | Severity | Notes |
+| ----- | -------- | ----- |
+| Upload fails at the default 921600 baud | Med | `Invalid head of packet` / `Timed out`. A marginal USB cable — flash at **115200** instead: `arduino-cli upload --fqbn esp32:esp32:m5stack-core-esp32:UploadSpeed=115200 -p <port> --input-dir <build>`. Takes ~64s vs ~10s. Better fix: a known-good USB-C data cable. `flash.sh` still defaults to 921600. |
+| AP SSID renamed | Low | Setup WiFi is now `codeMeter-XXXXXX`, not `ClaudeCodeMeter-XXXXXX` — scanning for the old name will miss it. |
+
+### Files changed
+
+```text
+m5clawd/ui.ino   — always-orange bar fill; per-card alert dot
+```
+
+### Notes for next session
+
+- All real work is on branch `phase-2-20260515` in worktree
+  `../theClaw-phase-2-20260515`. The branch is **local-only — never pushed.**
+- See Session 20 for the larger context (Usage redesign, pace tiers, TZ
+  auto-detect, button remap, easter egg, and the researched user-type options).
 
 ---
 
