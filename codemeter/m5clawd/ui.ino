@@ -89,6 +89,48 @@ void ui_show_status() {
   ui_status_row(x, y, "Free heap", String(ESP.getFreeHeap()) + " B");
   y += row;
   ui_status_row(x, y, "Uptime", ui_format_uptime(millis() / 1000));
+  y += row;
+
+  // OTA row — colour and text track g_ota.phase. The AVAILABLE state is the
+  // one the user has to act on, so it gets the primary colour and a "hold B"
+  // hint; DOWNLOADING gets a live percent so the long blocking-looking
+  // operation is visibly making progress.
+  String otaValue;
+  uint16_t otaColor = COLOR_TEXT;
+  switch (g_ota.phase) {
+    case OtaState::IDLE:
+      otaValue = "—";
+      otaColor = COLOR_TEXT_DIM;
+      break;
+    case OtaState::CHECKING:
+      otaValue = "checking...";
+      otaColor = COLOR_TEXT_DIM;
+      break;
+    case OtaState::UP_TO_DATE:
+      otaValue = String("up to date (v") + FW_VERSION + ")";
+      otaColor = COLOR_SUCCESS;
+      break;
+    case OtaState::AVAILABLE:
+      otaValue = String(g_ota.latestVersion) + " ready, hold B";
+      otaColor = COLOR_PRIMARY;
+      break;
+    case OtaState::DOWNLOADING:
+      otaValue = String("downloading ") + g_ota.downloadPct + "%";
+      otaColor = COLOR_PRIMARY;
+      break;
+    case OtaState::INSTALLING:
+      otaValue = "installing...";
+      otaColor = COLOR_PRIMARY;
+      break;
+    case OtaState::FAILED:
+      otaValue = String("failed: ") + g_ota.lastError;
+      otaColor = COLOR_ERROR;
+      break;
+  }
+  M5.Lcd.setTextColor(COLOR_TEXT_DIM);
+  M5.Lcd.drawString("Update", x, y);
+  M5.Lcd.setTextColor(otaColor);
+  M5.Lcd.drawString(otaValue, x + 110, y);
 }
 
 // --- Usage screen ----------------------------------------------------------
@@ -629,6 +671,20 @@ void ui_show_reset_confirm() {
   M5.Lcd.drawString("RESET", 160, 100);
   M5.Lcd.setFreeFont(FSS9);
   M5.Lcd.drawString("Keep holding C to wipe config", 160, 138);
+}
+
+// Confirm screen for the "install OTA update" gesture (ADR 011) — held button
+// B while the Status screen shows an available update. Green ("go") to
+// distinguish from the orange re-onboard screen and the red reset screen.
+void ui_show_ota_install_confirm(const char *version) {
+  M5.Lcd.fillScreen(COLOR_SUCCESS);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.setFreeFont(FSSB12);
+  M5.Lcd.setTextColor(COLOR_BG);
+  String line = String("INSTALL ") + version;
+  M5.Lcd.drawString(line, 160, 100);
+  M5.Lcd.setFreeFont(FSS9);
+  M5.Lcd.drawString("Keep holding B to install", 160, 138);
 }
 
 // Confirm screen for the "change credential" gesture (Task 3.4) — held button

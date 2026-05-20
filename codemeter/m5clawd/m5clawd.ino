@@ -27,6 +27,7 @@
 #include "Free_Fonts.h"
 #include "WiFiManager.h"
 #include "config.h"
+#include "ota.h"
 
 // --- Globals (defined here, visible to every tab) --------------------------
 Preferences          preferences;
@@ -39,6 +40,7 @@ static Screen currentScreen     = SCREEN_SPLASH;
 static bool   backlightOn           = true;
 static bool   resetConfirmShown     = false;
 static bool   reonboardConfirmShown = false;
+static bool   otaConfirmShown       = false;   // hold-B-to-install on Status
 static bool   statusHeld            = false;   // button A held -> Status peek
 static bool   displayInverted       = false;   // button A tap -> light/dark
 
@@ -220,6 +222,7 @@ void setup() {
   }
 
   poller_begin();                          // start NTP (syncs once WiFi is up)
+  ota_begin();                             // mark image valid; schedule first check
   nextPollAtMs = millis();                 // first poll as soon as loop() runs
 
   if (connected) {
@@ -261,7 +264,7 @@ static void buttons_poll() {
     do { M5.update(); delay(20); }              // wait out the held buttons
     while (M5.BtnA.isPressed() || M5.BtnB.isPressed() || M5.BtnC.isPressed());
     M5.update();                                // consume the release edges
-    statusHeld = resetConfirmShown = reonboardConfirmShown = false;
+    statusHeld = resetConfirmShown = reonboardConfirmShown = otaConfirmShown = false;
     currentScreen = SCREEN_USAGE;
     show_current_screen();
     return;
@@ -285,22 +288,42 @@ static void buttons_poll() {
     }
   }
 
-  // Button B — a tap cycles the screen brightness; a long-press (5 s, then
-  // +2 s to commit — mirroring C) re-runs OAuth onboarding without wiping the
-  // WiFi credentials (Task 3.4, the "change credential" gesture).
-  if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !reonboardConfirmShown) {
-    reonboardConfirmShown = true;
-    ui_show_reonboard_confirm();
+  // Button B — context-aware long-press:
+  //   - On the Status screen with an OTA update ready -> install firmware
+  //   - Otherwise -> re-run OAuth onboarding (Task 3.4 "change credential")
+  // Tap always cycles screen brightness, in either context.
+  bool b_install_mode =
+      (currentScreen == SCREEN_STATUS && g_ota.phase == OtaState::AVAILABLE);
+
+  if (b_install_mode) {
+    if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !otaConfirmShown) {
+      otaConfirmShown = true;
+      ui_show_ota_install_confirm(g_ota.latestVersion);
+    }
+    if (otaConfirmShown && M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
+      Serial.printf("[ota] user confirmed install of %s\n",
+                    g_ota.latestVersion);
+      otaConfirmShown = false;
+      ota_apply_update_now();
+      show_current_screen();                  // back to Status, now downloading
+    }
+  } else {
+    if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !reonboardConfirmShown) {
+      reonboardConfirmShown = true;
+      ui_show_reonboard_confirm();
+    }
+    if (reonboardConfirmShown &&
+        M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
+      Serial.println("[reonboard] clearing OAuth credential, keeping WiFi");
+      secrets_clear_oauth();
+      delay(300);
+      ESP.restart();
+    }
   }
-  if (reonboardConfirmShown && M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
-    Serial.println("[reonboard] clearing OAuth credential, keeping WiFi");
-    secrets_clear_oauth();
-    delay(300);
-    ESP.restart();
-  }
+
   if (M5.BtnB.wasReleased()) {
-    if (reonboardConfirmShown) {
-      reonboardConfirmShown = false;         // released early -> aborted
+    if (otaConfirmShown || reonboardConfirmShown) {
+      otaConfirmShown = reonboardConfirmShown = false;   // released early
       show_current_screen();
     } else {
       // Tap -> next brightness level, with a brief on-screen readout.
@@ -418,6 +441,11 @@ static void do_poll() {
 void loop() {
   M5.update();
   buttons_poll();
+
+  // OTA work — non-blocking. Drives in-flight downloads forward in small
+  // chunks and runs the scheduled GitHub poll. Reboots into the new image
+  // when an install finishes.
+  ota_tick();
 
   // Poll Anthropic when the (backoff-adjusted) interval has elapsed. A device
   // whose credential is dead (g_reauthRequired) stays idle until re-onboarded.

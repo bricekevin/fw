@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 // Firmware identity
 // ---------------------------------------------------------------------------
-#define FW_VERSION "0.0.1"
+#define FW_VERSION "0.0.2"
 
 // ---------------------------------------------------------------------------
 // Polling
@@ -173,6 +173,7 @@ void ui_show_provisioning();
 void ui_show_wifi_error();
 void ui_show_reset_confirm();
 void ui_show_reonboard_confirm();
+void ui_show_ota_install_confirm(const char *version);
 void ui_show_reauth_required();
 void ui_portal_hint(const char *msg);
 void ui_portal_client_connected();
