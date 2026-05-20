@@ -162,19 +162,24 @@ void ota_apply_update_now() {
   if (WiFi.status() != WL_CONNECTED)            { set_failed("wifi down");      return; }
 
   Serial.printf("[ota] downloading %s\n", pendingUrl);
-  dl.client = new WiFiClientSecure();      // default no-verify on core 1.0.4
-  dl.http   = new HTTPClient();
+  dl.http = new HTTPClient();
   dl.http->setUserAgent(OTA_USER_AGENT);
   dl.http->setTimeout(15000);
 
-  // GitHub release assets reply 302 to objects.githubusercontent.com — core
-  // 1.0.4 HTTPClient does not follow redirects, so do it ourselves (up to a
-  // small hop count to defeat redirect loops).
+  // GitHub release assets reply 302 to release-assets.githubusercontent.com —
+  // core 1.0.4 HTTPClient does not follow redirects, so do it ourselves (up
+  // to a small hop count to defeat redirect loops). Allocate a fresh
+  // WiFiClientSecure per hop: SNI from a previous handshake persists on the
+  // reused client, and the CDN then 301s us back to github.com with the
+  // Azure blob path glued to the wrong host -> 404. A fresh client gives
+  // each hop a clean TLS handshake with the right SNI.
   const char *headerKeys[] = {"Location"};
   dl.http->collectHeaders(headerKeys, 1);
   String url = pendingUrl;
   int    code = 0;
-  for (int hop = 0; hop < 3; ++hop) {
+  for (int hop = 0; hop < 4; ++hop) {       // github -> assets -> blob = 3 hops
+    delete dl.client;
+    dl.client = new WiFiClientSecure();     // fresh TLS per hop (see comment)
     if (!dl.http->begin(*dl.client, url)) {
       set_failed("http begin (dl)");
       ota_dl_cleanup();
