@@ -1,9 +1,97 @@
 # Handoff Notes
 
 **Project:** M5Clawd
-**Last Updated:** 2026-05-19 (Session 22)
+**Last Updated:** 2026-05-20 (Session 23)
 
 > This document tracks work sessions, changes, and context for continuity between work sessions or AI agent handoffs.
+
+---
+
+## Session 23 — 2026-05-19 / 05-20
+
+**Agent / Developer:** Kevin Brice (with Claude Code, Opus 4.7 1M)
+**Focus:** Publish the repo, then add OTA updates from GitHub Releases.
+
+### What happened
+
+1. **Repo published** to `https://github.com/bricekevin/fw` (public). The whole
+   theClaw tree was filter-repo'd into a `codemeter/` subdirectory of the new
+   `fw` monorepo and pushed with full history (71 commits at the time).
+   Local source of truth is now `~/GIT/fw/codemeter/`. `~/GIT/theClaw/` is
+   left alone but diverges from the remote.
+
+2. **OTA via GitHub Releases** — see ADR 011 for the design.
+   - `ota.h` + `ota.ino` — polls `api.github.com/repos/bricekevin/fw/releases/latest`
+     8 s after boot and every 6 h thereafter; parses `tag_name` and the
+     `firmware.bin` asset URL; streams the download into the inactive OTA
+     slot with `Update.write()` in tick()-sized chunks so loop() stays
+     responsive; reboots on completion.
+   - Status screen gained an "Update" row that shows the live phase
+     (`checking / up to date / installing / downloading N% / failed`) with
+     colour-coded values.
+   - **Auto-install** (revised after the first manual-confirm prototype was
+     judged clunky for a single-operator fleet — ADR 011 records the
+     trade-off, including the loss of app-level rollback on core 1.0.4).
+
+3. **Core 1.0.4 workarounds inline in `ota.ino`**:
+   - No `WiFiClientSecure::setInsecure()` → relies on the lib defaulting to
+     `MBEDTLS_SSL_VERIFY_NONE` when no CA cert is set.
+   - No `HTTPClient::setFollowRedirects()` → manual 302/301 follow up to 4
+     hops.
+   - No `esp_ota_mark_app_valid_cancel_rollback()` → no app-level pending-
+     verify rollback; the bootloader's own image-integrity check is the
+     only safety net.
+
+4. **Two production bugs found and fixed during the live test:**
+   - **B-hold UX trap.** With the first manual-confirm design, B-hold on
+     Status meant either "install OTA" (if `g_ota.phase == AVAILABLE`) or
+     "re-onboard" (otherwise). User peeked Status via A-hold and held B
+     before the OTA poll completed -> orange RE-ONBOARD screen wiped the
+     token. Fix in v0.0.4: scope B-hold by screen — Status-screen B-hold
+     never re-onboards. (Made moot by the v0.0.5 auto-install pivot, but
+     the scoping stayed.)
+   - **OTA redirect chain (v0.0.6).** Download failed with HTTP 404 on hop
+     3: `github.com` 302d to `release-assets.githubusercontent.com`, which
+     then 301d back to `github.com/github-production-release-asset/...`
+     (404). Root cause: a reused `WiFiClientSecure` carries SNI from the
+     prior handshake, so the CDN sees the wrong SNI on hop 2 and bounces.
+     Fix in v0.0.7: allocate a fresh `WiFiClientSecure` per redirect hop.
+     Verified live: v0.0.7 -> v0.0.8 auto-OTA went through in one shot,
+     single redirect, full 1.16 MB binary streamed, reboot into v0.0.8.
+
+5. **Releases published this session:** v0.0.2 (OTA baseline), v0.0.3
+   (first manual test target, never installed), v0.0.4 (B-hold UX fix),
+   v0.0.5 (auto-install pivot, USB-flashed), v0.0.6 (first auto-OTA target
+   — failed on redirect chain), v0.0.7 (redirect fix, USB-flashed), v0.0.8
+   (auto-OTA target — succeeded).
+
+6. **`flash.sh` defaults to 115200 baud** (one-line build commit earlier
+   this session) — see Session 22's known-issues note for why.
+
+### Files changed
+
+```text
+docs/decisions/011-github-releases-ota.md   — NEW (auto-install variant)
+m5clawd/ota.h, m5clawd/ota.ino              — NEW
+m5clawd/m5clawd.ino                         — ota_begin in setup, ota_tick
+                                              in loop, B-hold scoping
+m5clawd/ui.ino                              — Status "Update" row, OTA
+                                              install confirm screen
+                                              (now unused but kept)
+m5clawd/config.h                            — FW_VERSION bumps; prototype
+flash.sh                                    — default UploadSpeed=115200
+```
+
+### Notes for next session
+
+- The "install confirm" green screen (`ui_show_ota_install_confirm`) is
+  now dead code under auto-install. Left in place in case a future
+  "with cancel countdown" mode wants it.
+- TLS cert validation is OFF. Embedding the GitHub CA chain is flagged as
+  the next thing to do before adding any other users / units.
+- The fleet is now 1 unit on auto-OTA. Adding any more units means each
+  push gets propagated automatically — if that becomes scary, re-add the
+  cancellable countdown.
 
 ---
 
