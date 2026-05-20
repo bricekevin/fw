@@ -3,6 +3,7 @@
 
 # MCP / tooling caches
 .playwright-mcp/
+.claude/scheduled_tasks.lock
 
 # Read-only reference clone — re-clone per the README, not tracked here.
 # (Clawdmeter has its own .git; tracking it would create an embedded-repo mess.)

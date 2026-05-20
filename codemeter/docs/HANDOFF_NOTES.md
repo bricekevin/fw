@@ -65,12 +65,16 @@ desk environment.
    `wifi_diagnose_failure()` reads the stored SSID (`esp_wifi_get_config`) and
    scans the band to report whether the saved network is in range.
 
-   **Finding:** the device is paired to SSID `Brice Long Range`, but status 1
-   (`WL_NO_SSID_AVAIL`) on every attempt — the scan finds 4 other (weak,
-   -71..-78 dBm) networks but not `Brice Long Range`. Not a firmware bug:
-   the device is out of 2.4 GHz range of that AP from its current location.
-   Pending: user to confirm the band of `Brice Long Range` and move the
-   device into coverage.
+   **Finding (resolved):** the device repeatedly hit status 1
+   (`WL_NO_SSID_AVAIL`) on the saved SSID `Brice Long Range` — the AP was
+   beaconing but the device couldn't associate. A/B against yesterday's
+   `main` failed identically, exonerating this session's changes. After a
+   full chip erase + re-onboarding still failed (despite the AP showing
+   strong signal in the WiFiManager scan), the actual fix was a **home-router
+   power-cycle**: the router was in a flaky state where it advertised the
+   SSID but rejected new associations (same ESP32-side signature as out-of-
+   range, but the AP was the broken party). Worth recording in
+   TROUBLESHOOTING — `WL_NO_SSID_AVAIL` does not mean "out of range" alone.
 
 5. **Boot-time reset gesture** (`m5clawd.ino`). Discovered while debugging the
    above: holding C during the "Connecting to WiFi" screen did nothing,
