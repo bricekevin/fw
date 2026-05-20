@@ -1,34 +1,47 @@
 # fw
 
-Public firmware release artifacts for codeMeter (and any future devices in
-this family). This repo exists only to host versioned `firmware.bin`
-release assets for device-side OTA — it is intentionally empty of source.
+Public firmware release artifacts. Each project gets its own tag prefix on
+this repo; each release attaches a single `firmware.bin` asset that the
+matching device pulls over OTA.
 
-The source, docs, and history live at
-[`bricekevin/theClaw`](https://github.com/bricekevin/theClaw) (private).
+The actual source lives in private per-project repos.
 
-## OTA endpoint
+## Projects
 
-Device firmware polls:
+| Project | Tag prefix | Source repo (private) | First release |
+| --- | --- | --- | --- |
+| codeMeter (M5Stack Core) | `codemeter-v*` | [bricekevin/theClaw](https://github.com/bricekevin/theClaw) | v0.0.2 — v0.2.0 are unprefixed legacy tags; `codemeter-v0.2.1` onward |
 
-    https://api.github.com/repos/bricekevin/fw/releases/latest
+Pre-convention tags `v0.0.2`..`v0.2.0` are all codeMeter; the client also
+accepts them so devices already in the field keep updating cleanly.
 
-…and downloads the `firmware.bin` asset from the returned release. See ADR
-011 in the source repo for the design, including the TLS-pinned trust
-chain (USERTrust ECC for api.github.com, ISRG Root X1 for
-release-assets.githubusercontent.com) and the app-level rollback safety
-net on a crash.
+## OTA discovery
 
-## Publishing a new release
+The device polls:
 
-From a build in the source repo:
+    https://api.github.com/repos/bricekevin/fw/releases?per_page=20
+
+…walks the array, keeps tags matching its own project prefix (or the
+legacy unprefixed `vX.Y.Z` pattern, for codeMeter only), and picks the
+newest by parsed semver. The chosen release's `firmware.bin` asset is
+streamed into the inactive OTA slot. See ADR 011 in the source repo for
+the full design — TLS-pinned trust chain, app-level rollback, etc.
+
+## Publishing a release
+
+From a build in the project's source repo:
 
 ```sh
-gh release create vX.Y.Z firmware.bin \
+# Codemeter example:
+gh release create codemeter-v0.2.1 firmware.bin \
   --repo bricekevin/fw --target main \
-  --title "vX.Y.Z — <short description>" \
+  --title "codemeter-v0.2.1 — <short description>" \
   --notes "..."
 ```
 
-The device picks it up automatically on its next 6 h poll (or instantly on
-next boot).
+The release is created on `bricekevin/fw`; the `--target main` ties the
+auto-created tag to this repo's main, but the artifact and tag are what
+the device actually consumes.
+
+Devices for that project pick it up on their next poll (~6 h cadence, or
+immediately on next boot).
