@@ -133,13 +133,18 @@ static void ota_set_pending_flag() {
 
 static void ota_confirm_valid_image() { ota_check_pending_and_rollback(); }
 
-// Lexicographic compare is enough while versions stay vX.Y.Z with one-digit
-// fields; promote to component-wise compare when any field can exceed 9.
+// Component-wise compare on major.minor.patch — lexicographic was OK while
+// every field stayed single-digit but breaks the moment one hits 10.
 static const char *strip_v(const char *s) {
   return (s && (s[0] == 'v' || s[0] == 'V')) ? s + 1 : s;
 }
 static bool ota_is_newer(const char *remote, const char *current) {
-  return strcmp(strip_v(remote), strip_v(current)) > 0;
+  int rm = 0, rn = 0, rp = 0, cm = 0, cn = 0, cp = 0;
+  sscanf(strip_v(remote),  "%d.%d.%d", &rm, &rn, &rp);
+  sscanf(strip_v(current), "%d.%d.%d", &cm, &cn, &cp);
+  if (rm != cm) return rm > cm;
+  if (rn != cn) return rn > cn;
+  return rp > cp;
 }
 
 // --- public -----------------------------------------------------------------
