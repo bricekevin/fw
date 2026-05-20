@@ -288,25 +288,29 @@ static void buttons_poll() {
     }
   }
 
-  // Button B — context-aware long-press:
-  //   - On the Status screen with an OTA update ready -> install firmware
-  //   - Otherwise -> re-run OAuth onboarding (Task 3.4 "change credential")
-  // Tap always cycles screen brightness, in either context.
-  bool b_install_mode =
-      (currentScreen == SCREEN_STATUS && g_ota.phase == OtaState::AVAILABLE);
-
-  if (b_install_mode) {
-    if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !otaConfirmShown) {
-      otaConfirmShown = true;
-      ui_show_ota_install_confirm(g_ota.latestVersion);
+  // Button B long-press is screen-scoped, to keep destructive actions away
+  // from where a user is just peeking:
+  //   - On the Status screen: install an OTA update (only if one is ready).
+  //     If no update is available, B-hold is a no-op — never re-onboards from
+  //     here, because A-hold-to-peek + B-hold is too easy to bump into.
+  //   - On the Usage screen (or any other non-Status context): re-run OAuth
+  //     onboarding (Task 3.4 "change credential").
+  // Tap always cycles screen brightness.
+  if (currentScreen == SCREEN_STATUS) {
+    if (g_ota.phase == OtaState::AVAILABLE) {
+      if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !otaConfirmShown) {
+        otaConfirmShown = true;
+        ui_show_ota_install_confirm(g_ota.latestVersion);
+      }
+      if (otaConfirmShown && M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
+        Serial.printf("[ota] user confirmed install of %s\n",
+                      g_ota.latestVersion);
+        otaConfirmShown = false;
+        ota_apply_update_now();
+        show_current_screen();                // back to Status, now downloading
+      }
     }
-    if (otaConfirmShown && M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
-      Serial.printf("[ota] user confirmed install of %s\n",
-                    g_ota.latestVersion);
-      otaConfirmShown = false;
-      ota_apply_update_now();
-      show_current_screen();                  // back to Status, now downloading
-    }
+    // else: no update -> B-hold deliberately does nothing on Status.
   } else {
     if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !reonboardConfirmShown) {
       reonboardConfirmShown = true;
