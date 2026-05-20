@@ -31,12 +31,21 @@ single asset.
   `FW_VERSION` constant. Lexicographic semver compare for now (good enough
   while versions are `vX.Y.Z`); upgrade to component-wise compare when
   versions exceed `9` in any field.
-- **Apply:** found-newer surfaces on the Status screen as a row; **a 5 s hold
-  on Button B** while the Status screen is showing starts the download.
-  Hold-to-apply (not auto) so a bad release cannot brick a whole desk full
-  of devices the night after it ships. The on-chip ESP32 rollback (boot
-  validates the new image; a crash in the first run reverts to the previous
-  slot) is the safety net underneath that.
+- **Apply: automatic** (revised 2026-05-20). When `ota_check_now` finds a
+  newer release it calls `ota_apply_update_now` directly — no gesture, no
+  countdown. The earlier hold-to-install design was rejected by the operator
+  as clunky for a single-user fleet where the operator is also the release
+  author. Risks accepted:
+  - A bad release auto-propagates; recovery is a USB reflash. Acceptable at
+    the current fleet size (≤3 units, same operator).
+  - Core 1.0.4 has no `esp_ota_mark_app_valid_cancel_rollback`, so the
+    "first-boot crash rolls back" safety net is absent — if a future build
+    crashes before boot completes, the device truly bricks until USB.
+  - The boot-time C-hold reset watchdog (m5clawd.ino `boot_reset_watch`)
+    still works during `station_connect`, so an image that boots but cannot
+    join WiFi remains recoverable without USB.
+  Mitigation when the fleet grows: re-add an "any-button-cancel" countdown,
+  or add component-wise version compare with an allow-list.
 - **Transport:** HTTPS via `WiFiClientSecure` + `HTTPClient`. **TLS cert
   validation is deferred** — v1 uses `setInsecure()` and relies on GitHub
   being the only host we ever hit. Embedding GitHub's root CA chain is a

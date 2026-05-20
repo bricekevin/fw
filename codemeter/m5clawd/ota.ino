@@ -146,7 +146,9 @@ void ota_check_now() {
     strncpy(pendingUrl, url, sizeof(pendingUrl) - 1);
     pendingUrl[sizeof(pendingUrl) - 1] = 0;
     g_ota.phase = OtaState::AVAILABLE;
-    Serial.printf("[ota] AVAILABLE: %s (running %s)\n", tag, FW_VERSION);
+    Serial.printf("[ota] AVAILABLE: %s (running %s) -> auto-installing\n",
+                  tag, FW_VERSION);
+    ota_apply_update_now();                  // ADR 011: auto-apply policy
   } else {
     g_ota.phase = OtaState::UP_TO_DATE;
     Serial.printf("[ota] up to date (latest %s, running %s)\n",

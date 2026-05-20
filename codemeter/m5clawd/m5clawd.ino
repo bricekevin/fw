@@ -40,7 +40,6 @@ static Screen currentScreen     = SCREEN_SPLASH;
 static bool   backlightOn           = true;
 static bool   resetConfirmShown     = false;
 static bool   reonboardConfirmShown = false;
-static bool   otaConfirmShown       = false;   // hold-B-to-install on Status
 static bool   statusHeld            = false;   // button A held -> Status peek
 static bool   displayInverted       = false;   // button A tap -> light/dark
 
@@ -264,7 +263,7 @@ static void buttons_poll() {
     do { M5.update(); delay(20); }              // wait out the held buttons
     while (M5.BtnA.isPressed() || M5.BtnB.isPressed() || M5.BtnC.isPressed());
     M5.update();                                // consume the release edges
-    statusHeld = resetConfirmShown = reonboardConfirmShown = otaConfirmShown = false;
+    statusHeld = resetConfirmShown = reonboardConfirmShown = false;
     currentScreen = SCREEN_USAGE;
     show_current_screen();
     return;
@@ -288,30 +287,12 @@ static void buttons_poll() {
     }
   }
 
-  // Button B long-press is screen-scoped, to keep destructive actions away
-  // from where a user is just peeking:
-  //   - On the Status screen: install an OTA update (only if one is ready).
-  //     If no update is available, B-hold is a no-op — never re-onboards from
-  //     here, because A-hold-to-peek + B-hold is too easy to bump into.
-  //   - On the Usage screen (or any other non-Status context): re-run OAuth
-  //     onboarding (Task 3.4 "change credential").
+  // Button B long-press = re-run OAuth onboarding (Task 3.4 "change
+  // credential"). Deliberately disabled on the Status screen — A-hold-to-peek
+  // + B-hold is too easy to bump into when the user just wanted to look. OTA
+  // installs are automatic now (ADR 011); there is no manual install gesture.
   // Tap always cycles screen brightness.
-  if (currentScreen == SCREEN_STATUS) {
-    if (g_ota.phase == OtaState::AVAILABLE) {
-      if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !otaConfirmShown) {
-        otaConfirmShown = true;
-        ui_show_ota_install_confirm(g_ota.latestVersion);
-      }
-      if (otaConfirmShown && M5.BtnB.pressedFor(RESET_HOLD_MS + 2000)) {
-        Serial.printf("[ota] user confirmed install of %s\n",
-                      g_ota.latestVersion);
-        otaConfirmShown = false;
-        ota_apply_update_now();
-        show_current_screen();                // back to Status, now downloading
-      }
-    }
-    // else: no update -> B-hold deliberately does nothing on Status.
-  } else {
+  if (currentScreen != SCREEN_STATUS) {
     if (M5.BtnB.pressedFor(RESET_HOLD_MS) && !reonboardConfirmShown) {
       reonboardConfirmShown = true;
       ui_show_reonboard_confirm();
@@ -326,8 +307,8 @@ static void buttons_poll() {
   }
 
   if (M5.BtnB.wasReleased()) {
-    if (otaConfirmShown || reonboardConfirmShown) {
-      otaConfirmShown = reonboardConfirmShown = false;   // released early
+    if (reonboardConfirmShown) {
+      reonboardConfirmShown = false;                     // released early
       show_current_screen();
     } else {
       // Tap -> next brightness level, with a brief on-screen readout.

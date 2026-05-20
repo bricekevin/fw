@@ -111,7 +111,7 @@ void ui_show_status() {
       otaColor = COLOR_SUCCESS;
       break;
     case OtaState::AVAILABLE:
-      otaValue = String(g_ota.latestVersion) + " ready, hold B";
+      otaValue = String(g_ota.latestVersion) + " — installing...";
       otaColor = COLOR_PRIMARY;
       break;
     case OtaState::DOWNLOADING:
