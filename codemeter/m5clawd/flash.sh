@@ -46,12 +46,21 @@ if [ ! -f "$SKETCH_DIR/m5clawd.ino" ]; then
 fi
 
 # --- Compile ----------------------------------------------------------------
+# Build to a known output dir so the upload step can run a different FQBN
+# (with an overridden UploadSpeed) without rebuilding.
+BUILD_DIR="$SKETCH_DIR/build"
 echo "==> Compiling"
-arduino-cli compile --profile "$PROFILE" "$SKETCH_DIR"
+arduino-cli compile --profile "$PROFILE" --output-dir "$BUILD_DIR" "$SKETCH_DIR"
 
 # --- Upload -----------------------------------------------------------------
-echo "==> Uploading to $PORT"
-arduino-cli upload --profile "$PROFILE" --port "$PORT" "$SKETCH_DIR"
+# Default to 115200 baud. The board default (921600) is faster (~10 s vs ~64 s)
+# but fails intermittently on marginal USB cables ("Timed out waiting for
+# packet header") and has eaten 3+ sessions worth of debugging. 115200 always
+# works; users with a known-good cable can bump it via FLASH_BAUD=921600.
+BAUD="${FLASH_BAUD:-115200}"
+FQBN="esp32:esp32:m5stack-core-esp32:UploadSpeed=$BAUD"
+echo "==> Uploading to $PORT @ $BAUD baud"
+arduino-cli upload --fqbn "$FQBN" --input-dir "$BUILD_DIR" --port "$PORT" "$SKETCH_DIR"
 
 echo
 echo "Done. Watch serial output with:"
