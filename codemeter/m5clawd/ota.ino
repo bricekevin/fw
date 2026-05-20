@@ -8,17 +8,30 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Update.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <esp_system.h>
+#include <Preferences.h>
 #include "config.h"
+#include "ota_certs.h"
 
 // Core 1.0.4 notes (informing the workarounds in this file):
-//   - WiFiClientSecure has no setInsecure(); it defaults to MBEDTLS_SSL_VERIFY_
-//     NONE when no CA cert is supplied, which is what we want for v1.
+//   - WiFiClientSecure has no setInsecure() — we don't need it: TLS is now
+//     pinned via setCACert(GITHUB_OTA_ROOTS) (ADR 011, ota_certs.h).
 //   - HTTPClient has no setFollowRedirects(); we manually handle the 302 the
 //     GitHub asset URL replies with.
-//   - esp_ota_mark_app_valid_cancel_rollback() does not exist (IDF v3.2). A bad
-//     image that bricks the boot needs a USB reflash; the ESP32 *boot loader*
-//     still falls back to the previous slot if the new image fails to flash
-//     correctly, but app-level pending-verify rollback is absent.
+//   - esp_ota_mark_app_valid_cancel_rollback() does not exist (IDF v3.2), so
+//     we implement app-level rollback ourselves: after an OTA install we set
+//     a "pending verify" flag in NVS. On the next boot, if the reset reason
+//     looks like a crash (panic / watchdog / brownout) AND the flag is still
+//     set, we swap the boot partition back to the previous slot and reboot
+//     before any of our crash-prone code runs. The flag is cleared once the
+//     first OTA poll on the new image completes (whether the answer is
+//     "up to date" or "newer available"), which exercises both WiFi and
+//     TLS — a reasonable proxy for "this image works".
+
+#define OTA_NVS_NAMESPACE       "m5clawd_ota"
+#define OTA_NVS_PENDING_KEY     "pending"
 
 #define OTA_GITHUB_API \
     "https://api.github.com/repos/bricekevin/fw/releases/latest"
@@ -54,10 +67,71 @@ static void set_failed(const char *why) {
   Serial.printf("[ota] FAILED: %s\n", why);
 }
 
-// In a newer ESP-IDF this is where we would call
-// esp_ota_mark_app_valid_cancel_rollback() to commit a freshly-installed
-// image. Core 1.0.4 has no such API — see the header comment above.
-static void ota_confirm_valid_image() { /* no-op on core 1.0.4 */ }
+// App-level rollback for core 1.0.4 (which lacks esp_ota_mark_app_valid_
+// cancel_rollback). Returns true if a rollback was performed (caller should
+// not continue — we reboot).
+static bool ota_check_pending_and_rollback() {
+  Preferences p;
+  if (!p.begin(OTA_NVS_NAMESPACE, /*readonly=*/false)) return false;
+  bool pending = p.getBool(OTA_NVS_PENDING_KEY, false);
+  if (!pending) { p.end(); return false; }
+
+  esp_reset_reason_t reason = esp_reset_reason();
+  const bool crashed = (reason == ESP_RST_PANIC || reason == ESP_RST_INT_WDT ||
+                        reason == ESP_RST_TASK_WDT || reason == ESP_RST_WDT ||
+                        reason == ESP_RST_BROWNOUT);
+  if (!crashed) {
+    // Clean boot of the new image — leave the flag set; clear_pending() will
+    // remove it once a poll succeeds (the real "this image works" signal).
+    p.end();
+    return false;
+  }
+
+  // The new image crashed before the poll could clear the flag — revert.
+  Serial.printf("[ota] crash on pending image (reset reason %d) -> ROLLBACK\n",
+                (int)reason);
+  p.remove(OTA_NVS_PENDING_KEY);
+  p.end();
+
+  const esp_partition_t *running  = esp_ota_get_running_partition();
+  const esp_partition_t *previous = esp_ota_get_next_update_partition(running);
+  if (!previous || previous == running) {
+    Serial.println("[ota] no previous partition to roll back to");
+    return false;
+  }
+  if (esp_ota_set_boot_partition(previous) != ESP_OK) {
+    Serial.println("[ota] esp_ota_set_boot_partition failed");
+    return false;
+  }
+  Serial.printf("[ota] rolling back to %s -> reboot\n", previous->label);
+  delay(300);
+  ESP.restart();
+  return true;                               // unreachable
+}
+
+// Called by the OTA poller once a poll completes successfully on the new
+// image. WiFi + TLS + GitHub all worked, so commit.
+static void ota_clear_pending_flag() {
+  Preferences p;
+  if (!p.begin(OTA_NVS_NAMESPACE, /*readonly=*/false)) return;
+  if (p.getBool(OTA_NVS_PENDING_KEY, false)) {
+    p.remove(OTA_NVS_PENDING_KEY);
+    Serial.println("[ota] new image committed (poll succeeded)");
+  }
+  p.end();
+}
+
+// Set when an OTA install has finished and we're about to reboot into the
+// new slot. The next boot will check this + the reset reason.
+static void ota_set_pending_flag() {
+  Preferences p;
+  if (p.begin(OTA_NVS_NAMESPACE, /*readonly=*/false)) {
+    p.putBool(OTA_NVS_PENDING_KEY, true);
+    p.end();
+  }
+}
+
+static void ota_confirm_valid_image() { ota_check_pending_and_rollback(); }
 
 // Lexicographic compare is enough while versions stay vX.Y.Z with one-digit
 // fields; promote to component-wise compare when any field can exceed 9.
@@ -70,8 +144,13 @@ static bool ota_is_newer(const char *remote, const char *current) {
 
 // --- public -----------------------------------------------------------------
 
+// Called from the very top of setup() — earlier than ota_begin (which waits
+// for WiFi). If the new image is crashing on every boot, the boot-crash loop
+// gets broken here BEFORE we touch the radio or anything else that might be
+// the actual crash source.
+void ota_check_rollback_on_boot() { ota_check_pending_and_rollback(); }
+
 void ota_begin() {
-  ota_confirm_valid_image();
   nextCheckMs = millis() + 8000;           // first check ~8 s after boot
 }
 
@@ -96,7 +175,8 @@ void ota_check_now() {
   g_ota.phase = OtaState::CHECKING;
   Serial.println("[ota] checking " OTA_GITHUB_API);
 
-  WiFiClientSecure client;                 // no CA cert -> NONE auth (ADR 011)
+  WiFiClientSecure client;
+  client.setCACert(GITHUB_OTA_ROOTS);       // pinned trust anchors (ADR 011)
   HTTPClient http;
   http.setUserAgent(OTA_USER_AGENT);
   http.setTimeout(10000);
@@ -154,6 +234,10 @@ void ota_check_now() {
     Serial.printf("[ota] up to date (latest %s, running %s)\n",
                   tag, FW_VERSION);
   }
+  // A poll just succeeded (WiFi + TLS + GitHub all worked), so this image is
+  // healthy enough to commit. Clears any pending-verify flag from a prior
+  // OTA install so the next crash won't roll us back.
+  ota_clear_pending_flag();
 }
 
 void ota_apply_update_now() {
@@ -180,6 +264,7 @@ void ota_apply_update_now() {
   for (int hop = 0; hop < 4; ++hop) {       // github -> assets -> blob = 3 hops
     delete dl.client;
     dl.client = new WiFiClientSecure();     // fresh TLS per hop (see comment)
+    dl.client->setCACert(GITHUB_OTA_ROOTS); // pinned trust anchors (ADR 011)
     if (!dl.http->begin(*dl.client, url)) {
       set_failed("http begin (dl)");
       ota_dl_cleanup();
@@ -259,15 +344,22 @@ void ota_tick() {
         set_failed(err);
         return;
       }
-      Serial.println("[ota] installed -> reboot");
+      ota_set_pending_flag();              // arms boot-time rollback check
+      Serial.println("[ota] installed -> reboot (pending verify)");
       delay(500);
       ESP.restart();
     }
     return;
   }
 
-  // Scheduled poll.
+  // Scheduled poll. Defer until NTP has sync'd — TLS cert validation needs
+  // a real wall clock or every notBefore check fails. Retry every ~3 s until
+  // the clock is real, then settle into the 6 h cadence.
   if (now >= nextCheckMs) {
+    if (poller_time_now() == 0) {
+      nextCheckMs = now + 3000;
+      return;
+    }
     nextCheckMs = now + OTA_CHECK_INTERVAL_MS;
     ota_check_now();
   }

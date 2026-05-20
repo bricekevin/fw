@@ -184,6 +184,11 @@ void setup() {
 
   SPIFFS.begin(true);
 
+  // Early rollback check (ADR 011): if the last boot crashed and an OTA
+  // install was pending verification, revert to the previous slot before we
+  // touch anything that might be the crash source. May reboot here.
+  ota_check_rollback_on_boot();
+
   // Onboarding (ADR 010) — single stage. The soft-AP captive portal collects
   // the home-WiFi credentials and ingests the Claude token (scanned from the
   // host pairing helper's QR via the /cred route). It reboots once it holds

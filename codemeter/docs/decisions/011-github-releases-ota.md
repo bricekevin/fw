@@ -38,18 +38,30 @@ single asset.
   author. Risks accepted:
   - A bad release auto-propagates; recovery is a USB reflash. Acceptable at
     the current fleet size (≤3 units, same operator).
-  - Core 1.0.4 has no `esp_ota_mark_app_valid_cancel_rollback`, so the
-    "first-boot crash rolls back" safety net is absent — if a future build
-    crashes before boot completes, the device truly bricks until USB.
+  - Core 1.0.4 has no `esp_ota_mark_app_valid_cancel_rollback`. **App-level
+    rollback added 2026-05-20**: after an OTA install we set a
+    `pending`-flag in NVS namespace `m5clawd_ota` and reboot. On the next
+    boot, if `esp_reset_reason()` reports a crash (panic / int_wdt /
+    task_wdt / wdt / brownout) AND the flag is set, we call
+    `esp_ota_set_boot_partition()` on the previous slot and reboot. The
+    flag is cleared once the first OTA poll on the new image completes —
+    that exercises WiFi, NTP, TLS-with-the-new-CA-pins, and the GitHub
+    round-trip, which together are a reasonable "this image works" signal.
+    A bad image that boots far enough to clear the flag but is subtly
+    broken still needs a USB reflash; not addressed.
   - The boot-time C-hold reset watchdog (m5clawd.ino `boot_reset_watch`)
     still works during `station_connect`, so an image that boots but cannot
     join WiFi remains recoverable without USB.
   Mitigation when the fleet grows: re-add an "any-button-cancel" countdown,
   or add component-wise version compare with an allow-list.
-- **Transport:** HTTPS via `WiFiClientSecure` + `HTTPClient`. **TLS cert
-  validation is deferred** — v1 uses `setInsecure()` and relies on GitHub
-  being the only host we ever hit. Embedding GitHub's root CA chain is a
-  follow-up; flagged in `4_QUALITY_ASSURANCE.md`.
+- **Transport:** HTTPS via `WiFiClientSecure` + `HTTPClient`. **TLS pinned**
+  to two root CAs covering both legs of the redirect (revised 2026-05-20):
+  USERTrust ECC Certification Authority for `api.github.com` (Sectigo
+  chain), and ISRG Root X1 for `release-assets.githubusercontent.com`
+  (Let's Encrypt chain). Both PEMs are concatenated in `ota_certs.h`;
+  `WiFiClientSecure::setCACert(GITHUB_OTA_ROOTS)` lets mbedtls accept either
+  as a trust anchor. The poll defers until NTP has sync'd, because
+  notBefore checks fail with the boot wall-clock at the epoch.
 - **Status surface:** the Status screen gains a "Firmware" block with the
   current version, the available version (if any), the last check time, and
   the current OTA phase (`idle / checking / available / downloading N% /

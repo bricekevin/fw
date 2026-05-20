@@ -28,6 +28,7 @@ struct OtaState {
 
 extern OtaState g_ota;
 
+void        ota_check_rollback_on_boot(); // call ASAP in setup() (see ota.ino)
 void        ota_begin();              // once from setup() (marks image valid)
 void        ota_tick();               // every loop() iteration
 void        ota_check_now();          // force a poll (boot, manual trigger)
