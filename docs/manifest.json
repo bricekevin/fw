@@ -1,12 +1,15 @@
 {
   "name": "codeMeter",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "codemeter-latest-merged.bin", "offset": 0 }
+        {
+          "path": "codemeter-latest-merged.bin",
+          "offset": 0
+        }
       ]
     }
   ]
