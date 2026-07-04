@@ -26,6 +26,14 @@ WiFi on its own.
 | Project | Tag prefix | Source repo (private) | Notes |
 | --- | --- | --- | --- |
 | codeMeter (M5Stack Core) | `codemeter-v*` | [bricekevin/theClaw](https://github.com/bricekevin/theClaw) | Tags `v0.0.2`..`v0.2.0` are pre-convention codeMeter releases |
+| Social Meter (M5Stack Core) | `socialmeter-v*` | private | — |
+| priceDisplay — crypto/stock ticker (M5Stack Core) | `priceDisplay-v*` | private | Merged image includes SPIFFS (chart PNGs); OTA replaces the app slot only |
+
+### Install pages (web flasher)
+
+- codeMeter — <https://bricekevin.github.io/fw/>
+- Social Meter — <https://bricekevin.github.io/fw/socialmeter/>
+- priceDisplay — <https://bricekevin.github.io/fw/pricedisplay/>
 
 ## OTA discovery (already-flashed device)
 
