@@ -1,6 +1,6 @@
 {
   "name": "SD Coaster Sign",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "new_install_prompt_erase": true,
   "builds": [
     {
