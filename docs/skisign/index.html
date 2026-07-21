@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Install SD Coaster Sign</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg:#0A0A0C; --surface:#16161B; --text:#F2F2F4; --dim:#9a9aa4;
+      --primary:#00459D; --accent:#2b7de9; --primary-on:#FFFFFF;
+    }
+    html, body { background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    h1 { color: var(--accent); font-size: 2rem; margin: 0 0 8px; letter-spacing: -.01em; }
+    .lede { color: var(--dim); margin: 0 0 32px; }
+    ol { padding-left: 1.4rem; }
+    li { margin: 10px 0; }
+    code, kbd { background: var(--surface); padding: 2px 6px; border-radius: 4px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+                font-size: .92em; }
+    .install-row { margin: 32px 0; }
+    esp-web-install-button { --esp-tools-button-color: var(--primary-on);
+                             --esp-tools-button-background-color: var(--accent); }
+    .note { background: var(--surface); border-left: 3px solid var(--accent);
+            padding: 14px 18px; border-radius: 8px; margin: 24px 0;
+            color: var(--text); }
+    .note strong { color: var(--accent); }
+    footer { color: var(--dim); font-size: .9rem; margin-top: 48px;
+             border-top: 1px solid var(--surface); padding-top: 16px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>Install SD Coaster Sign</h1>
+  <p class="lede">Flash the San Diego COASTER LED map sign in about a minute —
+  no toolchain, no source clone. The sign shows live trains straight from the
+  transit feed; it only needs Wi-Fi and power.</p>
+
+  <ol>
+    <li>Plug the sign's board into a <strong>USB port on this computer</strong>
+        (data cable, not charge-only).</li>
+    <li>Click <strong>Connect</strong> below and pick the device from the list
+        (its name looks like <code>cu.usbserial-…</code> or <code>CH340</code>).</li>
+    <li>Click <strong>Install SD Coaster Sign</strong> on the panel that appears,
+        confirm the erase prompt, and wait (~1 min).</li>
+    <li>When the board reboots, join the Wi-Fi network
+        <code>SETUP SD COASTER</code> from your phone (password
+        <code>123456789</code>) and enter your home Wi-Fi. That's it — trains
+        appear within a minute.</li>
+  </ol>
+
+  <div class="install-row">
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+  </div>
+
+  <div class="note">
+    <strong>Browser:</strong> works in <strong>Chrome</strong> or <strong>Edge</strong> on
+    desktop (they have WebSerial). Safari and Firefox don't yet — open this page in Chrome.
+  </div>
+
+  <div class="note">
+    <strong>After the first install</strong> the sign updates itself over Wi-Fi — every
+    six hours it checks for a newer release and rolls it in automatically. You only need
+    this page for a brand-new board or a recovery flash.
+  </div>
+
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button?module"></script>
+
+  <footer>
+    Firmware artifacts:
+    <a href="https://github.com/bricekevin/fw/releases">github.com/bricekevin/fw/releases</a>
+    (tags <code>skisign-v*</code>).
+  </footer>
+</body>
+</html>
