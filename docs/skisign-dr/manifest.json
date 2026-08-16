@@ -1,0 +1,16 @@
+{
+  "name": "Dodge Ridge Sign",
+  "version": "2.1.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "skisign-dr-latest-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
