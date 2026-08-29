@@ -37,10 +37,23 @@ asset named exactly `firmware.bin` — see `RESCUE-RUNBOOK.md`. The list is
 13,382 B against a ~17,900 B chunking threshold, and chunks about 1 sample in
 30; a device retries every 6 h, so that is immaterial.
 
-**Proven on hardware.** A genuine socialMeter `v0.1.0` was flashed to the bench
-M5Stack and rescued itself unattended — parsed a 9,287 B unchunked list, matched
-`socialmeter-v0.1.3` via `firmware.bin`, installed, rebooted, and then polled
-the **Pages manifest**. It crossed permanently to the modern scheme.
+**Proven on hardware, twice, on unmodified stock firmware.**
+
+| flashed | read | result |
+|---|---|---|
+| socialMeter `v0.1.0` | 9,287 B list, unchunked, 2 releases | found `socialmeter-v0.1.3` via `firmware.bin`, installed, rebooted, then polled the **Pages manifest** |
+| codeMeter `v0.3.0` | 11,343 B list, unchunked, 3 releases | found `codemeter-v0.3.2`, downloaded 1,182,496 B via the 302 chain, installed, rebooted, then polled the **Pages manifest** |
+
+Both crossed permanently to the modern scheme, and both **kept their NVS state**
+across the update — codeMeter came back `paired` with its API key intact, which
+matters because the rescue is an app-slot write, not a full reflash.
+
+`priceDisplay` is the one product not yet exercised this way, because the bench
+M5Stack runs the 4 MB layout and priceDisplay needs the 16 MB one — converting
+it is a full bootloader + partition + SPIFFS change, not an app write. Its
+download routine is byte-identical to the two above (diffed; the only difference
+is a comment). **The authentic test is simply plugging in a genuinely old
+fielded unit**, which is worth doing when one is to hand.
 
 ## Why MANIFEST devices work
 
