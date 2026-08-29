@@ -48,7 +48,19 @@ poll cadence, not process: nothing happens faster by watching it.
 ## The rotation
 
 **Up to three products at a time.** Measured with all three M5Stack releases
-published: **13,382 B, chunked 0 of 5.**
+published: **13,382 B, chunked 1 of 30 samples (~3%).**
+
+Measure the *rate*, not a single verdict. One clean sample proves nothing here,
+and one chunked sample is not a blocker either — what matters to a fielded
+device is per-poll failure probability, because it simply retries in 6 h. At ~3%
+a device is essentially certain to get through within a day (0.03^4 ≈ 1 in a
+million after four polls). `chunkrate.sh` in the session scratchpad does this;
+the one-liner is 25 requests counting `Transfer-Encoding: chunked`.
+
+Contrast the *publish* guard in `release.sh`, which refuses on any chunked
+sample at all. That is deliberately stricter and should stay: pushing a release
+into a bad window strands devices with no retry that helps, whereas a rescue
+window is open for days and every poll is another chance.
 
 Do NOT publish all five. That was 27,234 B and came back chunked. And keep an
 eye on the number rather than the count — ADR 013 observed the same **15,047 B**
