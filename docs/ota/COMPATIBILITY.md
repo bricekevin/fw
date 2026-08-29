@@ -55,6 +55,45 @@ download routine is byte-identical to the two above (diffed; the only difference
 is a comment). **The authentic test is simply plugging in a genuinely old
 fielded unit**, which is worth doing when one is to hand.
 
+## A third population: priceDisplay units with NO OTA at all
+
+Found on real hardware 2026-08-29. A fielded priceDisplay was connected and
+inspected:
+
+- **No OTA code whatsoever.** Its 1.9 MB app image contains no
+  `api.github.com` URL, no `bricekevin.github.io` URL, and no `firmware.bin`
+  string. It ran five minutes on Wi-Fi and never attempted a check — current
+  firmware checks 8 s after boot.
+- **It matches none of `v1.0.3`/`v1.0.4`/`v1.0.5`**, so it predates all three.
+  OTA arrived in priceDisplay at **`v1.0.3`** (releases-API); `v1.0.4` moved to
+  the manifest.
+- **It is on a 4 MB partition table despite a 16 MB chip**: `app0` 1,310,720 B
+  at `0x10000`, `spiffs` at `0x290000`. Current releases use the 16 MB layout —
+  `app0` 1,966,080 B, `spiffs` at `0xc90000`.
+
+**These units can never update themselves, and no change on our side will fix
+that** — there is no code in them to reach us. They are outside the "any
+OTA-supporting firmware" guarantee, by construction.
+
+**The fix is a USB reflash with the merged image**, via
+`https://bricekevin.github.io/fw/pricedisplay/`. That is not merely convenient,
+it is *required*: the layout differs, so an app-only write is not enough — the
+merged image rewrites the bootloader, partition table, app and SPIFFS together.
+Once flashed, the unit is on `v1.0.5`, has manifest OTA, and is permanently
+self-updating.
+
+Config survives: priceDisplay reads `ccticker.cfg` from the **SD card**, not
+NVS. The timezone preference in NVS is re-detected on first boot.
+
+### How to recognise one in the field
+
+- **No firmware version shown anywhere**, and holding Button A gives no status
+  screen — both arrived later.
+- Serial output is at **9600 baud**, not 115200. The sketch calls
+  `Serial.begin(9600)` after `M5.begin()` has already opened the UART at 115200,
+  so a 115200 capture shows the M5Stack banner and then garbage. That is the
+  fastest way to mistake a healthy unit for a broken one.
+
 ## Why MANIFEST devices work
 
 Manifests now name a **Pages** payload rather than a release asset, so they no
