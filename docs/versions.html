@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Firmware — current versions</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{--bg:#1A1815;--surface:#26221E;--text:#F5F0E8;--dim:#8A8780;
+        --primary:#DA7756;--ok:#5FA86A;--bad:#C1553F;--warn:#C99A3F}
+  html,body{background:var(--bg);color:var(--text);margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+       line-height:1.5;max-width:900px;margin:0 auto;padding:48px 24px 80px}
+  h1{font-size:1.6rem;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 28px}
+  .wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:.94rem;min-width:640px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #3A342E;
+        vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:.8rem;letter-spacing:.04em;
+     text-transform:uppercase}
+  td.v{font-variant-numeric:tabular-nums;font-weight:600;color:var(--primary)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.84em;
+       color:var(--dim);word-break:break-all}
+  .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.75rem;
+        font-weight:600}
+  .ok{background:rgba(95,168,106,.16);color:var(--ok)}
+  .bad{background:rgba(193,85,63,.16);color:var(--bad)}
+  .warn{background:rgba(201,154,63,.16);color:var(--warn)}
+  .note{background:var(--surface);border-radius:8px;padding:16px 18px;margin-top:28px;
+        color:var(--dim);font-size:.88rem}
+  .note b{color:var(--text)}
+  a{color:var(--primary)}
+</style>
+</head>
+<body>
+<h1>Firmware — current versions</h1>
+<p class="sub">Live, read straight from the OTA manifests every device polls.
+This page is the source of truth; nothing here is hand-maintained.</p>
+
+<div class="wrap">
+<table>
+  <thead><tr>
+    <th>Product</th><th>Version</th><th>Fielded</th><th>Payload</th><th>Reachable</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+
+<div class="note" id="foot">
+  <b>Fielded</b> = units the owner cannot physically reach, so their newest
+  GitHub release stays <b>published</b> for pre-manifest stragglers. Signs are
+  all in hand, so their releases are drafted.
+  See <code>docs/ota/COMPATIBILITY.md</code> and
+  <code>docs/ota/RESCUE-RUNBOOK.md</code> in this repo.
+</div>
+
+<script>
+// Keep this list in step with docs/ota/*.json. "fielded" mirrors the
+// published-release policy: only these three have units we cannot reach.
+const PRODUCTS = [
+  {id:"codemeter",    name:"codeMeter",         fielded:true},
+  {id:"pricedisplay", name:"priceDisplay",      fielded:true},
+  {id:"socialmeter",  name:"socialMeter",       fielded:true},
+  {id:"coaster",      name:"SD Coaster",        fielded:false},
+  {id:"skisign",      name:"SD Coaster (legacy manifest, pinned)", fielded:false},
+  {id:"skisign-dr",   name:"Dodge Ridge",       fielded:false},
+];
+
+const rows = document.getElementById("rows");
+
+function cell(html, cls){ const td=document.createElement("td");
+  if(cls) td.className=cls; td.innerHTML=html; return td; }
+
+PRODUCTS.forEach(async p => {
+  const tr = document.createElement("tr");
+  tr.appendChild(cell(p.name));
+  const ver  = cell("…","v");        tr.appendChild(ver);
+  tr.appendChild(cell(p.fielded
+      ? '<span class="pill warn">yes</span>'
+      : '<span class="pill ok">in hand</span>'));
+  const pay  = cell("…");            tr.appendChild(pay);
+  const stat = cell("…");            tr.appendChild(stat);
+  rows.appendChild(tr);
+
+  try {
+    const r = await fetch(`ota/${p.id}.json`, {cache:"no-store"});
+    if (!r.ok) throw new Error("manifest " + r.status);
+    const m = await r.json();
+    ver.textContent = m.version;
+    pay.innerHTML = `<code>${(m.url||"").replace(/^https:\/\/[^/]+\//,"")}</code>`;
+    // HEAD the payload the devices are told to fetch. A manifest that resolves
+    // but names a 404 is the failure mode that matters, and it is invisible
+    // from the manifest alone.
+    const h = await fetch(m.url, {method:"HEAD", cache:"no-store"});
+    stat.innerHTML = h.ok
+      ? `<span class="pill ok">${h.status} OK</span>`
+      : `<span class="pill bad">${h.status}</span>`;
+  } catch (e) {
+    ver.textContent = "—";
+    stat.innerHTML = `<span class="pill bad">${e.message}</span>`;
+  }
+});
+</script>
+</body>
+</html>
