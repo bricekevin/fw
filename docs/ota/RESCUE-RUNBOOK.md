@@ -71,6 +71,26 @@ done; echo
 A new product ships manifest-native and its release can be drafted immediately,
 so it need not cost anything — but only if someone remembers to draft it.
 
+## Mind the anonymous rate limit — it is shared with the devices
+
+`api.github.com` allows **60 requests/hour per IP** unauthenticated. That is the
+same budget a pre-manifest device spends, and it is per *IP*, so every device
+behind one NAT shares it.
+
+Sampling the framing exhausts it fast — 60 requests is only a few runs of the
+25-sample loop above, and this was hit for real on 2026-08-29. While exhausted
+the API returns a 280 B JSON error, which looks alarmingly like "all the
+releases vanished". It is not; check with `gh api rate_limit`.
+
+- **Inspecting** the list: use `gh api` (authenticated, 5,000/hr).
+- **Measuring framing**: must be anonymous to be representative — so do it
+  sparingly, and never in a loop you leave running.
+
+At 4 polls/day a fielded device is nowhere near the limit. But a device stuck in
+a reboot loop polls on every boot, and several of those behind one NAT could
+exhaust it and lock each other out — another reason the web flasher, not the
+rescue path, is what to promise a customer.
+
 ## Verify what a device actually sees
 
 `gh api` is authenticated and **shows drafts**, which is misleading. Use an
