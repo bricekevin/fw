@@ -15,27 +15,79 @@ be redirected. They find an update only when that list is small enough that
 GitHub does not serve it chunked, and only when the newest release carrying
 their tag prefix has an asset named **exactly `firmware.bin`**.
 
+## Proven, not assumed (2026-08-29)
+
+A genuine pre-manifest **socialMeter 0.1.0** — the releases-API scanner, the
+version whose OTA had never worked — was flashed to the bench M5Stack and
+rescued itself unattended:
+
+```
+[ota] checking https://api.github.com/repos/bricekevin/fw/releases?per_page=20
+[ota] body 9287 bytes (heap free 202528)
+[ota] parsed 2 releases
+[ota] AVAILABLE: socialmeter-v0.1.3 (running 0.1.0) -> auto-installing
+[ota] downloading .../socialmeter-v0.1.3/firmware.bin
+[ota] 302 -> release-assets.githubusercontent.com/...
+[ota] download started, 1275968 bytes
+[ota] installed -> reboot (pending verify)
+...
+Social Meter v0.1.3 booting
+[ota] checking https://bricekevin.github.io/fw/ota/socialmeter.json
+[ota] up to date (latest socialmeter-v0.1.3, running 0.1.3)
+[ota] new image committed (poll succeeded)
+```
+
+The last three lines are the point: the device **crossed from pre-manifest to
+manifest** and is now permanently immune to the whole problem. It found the
+release only because of the `firmware.bin` asset added that day — before it,
+`strcmp` failed and the device reported "up to date" forever.
+
+**A device rescues itself on its very next poll.** The wait below is device
+poll cadence, not process: nothing happens faster by watching it.
+
 ## The rotation
 
-**One product at a time. Never two.** With one release published the list is
-~4,519 B; with five it was 27,234 B and chunked.
+**Up to three products at a time.** Measured with all three M5Stack releases
+published: **13,382 B, chunked 0 of 5.**
+
+Do NOT publish all five. That was 27,234 B and came back chunked. And keep an
+eye on the number rather than the count — ADR 013 observed the same **15,047 B**
+response served both chunked and `Content-Length` seconds apart, so treat
+anything near 15 KB as the danger zone regardless of how many releases it is.
+Dropping a redundant duplicate asset from socialMeter took the current batch
+from 15,284 B back to 13,382 B; assets cost real headroom.
 
 ```bash
 R() { gh api "repos/bricekevin/fw/releases?per_page=100" \
         --jq ".[] | select(.tag_name==\"$1\") | .id"; }
 
-# open
-gh api -X PATCH "repos/bricekevin/fw/releases/$(R priceDisplay-v1.0.5)" -F draft=false
-
-# ... leave it for a few poll intervals (the check cadence is 6 h, so
-#     24-48 h gives a device several chances ...
-
-# close
-gh api -X PATCH "repos/bricekevin/fw/releases/$(R priceDisplay-v1.0.5)" -F draft=true
+# open / close
+gh api -X PATCH "repos/bricekevin/fw/releases/$(R <tag>)" -F draft=false
+gh api -X PATCH "repos/bricekevin/fw/releases/$(R <tag>)" -F draft=true
 ```
 
-Then move to the next product. Draft, never delete — drafting hides a release
-from the anonymous API while preserving its tag and assets, and is reversible.
+Leave a batch open long enough for a device to poll: the cadence is **6 h**, so
+24-48 h gives a fielded unit four to eight chances. Then draft that batch and
+open the next. Draft, never delete — drafting hides a release from the anonymous
+API while preserving its tag and assets, and is reversible.
+
+**Batch 1, opened 2026-08-29:** `codemeter-v0.3.2`, `priceDisplay-v1.0.5`,
+`socialmeter-v0.1.3` (the three largest fleets; priceDisplay is also the one
+that fails silently green, so it is the most likely to hide stragglers).
+**Batch 2, still to run:** `skisign-v2.1.4`, `skisign-dr-v2.1.3`.
+
+Check what an anonymous device actually sees — `gh api` is authenticated and
+will show you drafts, which is misleading:
+
+```bash
+curl -s "https://api.github.com/repos/bricekevin/fw/releases?per_page=20&cb=$RANDOM" \
+  | python3 -c "
+import json,sys
+for r in json.load(sys.stdin):
+    n=[a['''name'''] for a in r['''assets''']]
+    print(f\"  {r['''tag_name''']:<22} {'''OK''' if '''firmware.bin''' in n else '''NOT RESCUABLE'''} {n}\")
+"
+```
 
 Verify the window while one is open:
 
