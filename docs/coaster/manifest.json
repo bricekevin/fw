@@ -1,0 +1,16 @@
+{
+  "name": "SD Coaster Sign",
+  "version": "2.1.4",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "coaster-latest-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
