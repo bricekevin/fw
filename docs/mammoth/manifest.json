@@ -1,0 +1,16 @@
+{
+  "name": "Mammoth Sign",
+  "version": "2.2.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "mammoth-latest-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

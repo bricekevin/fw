@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Install Mammoth Sign</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg:#0A0A0C; --surface:#16161B; --text:#F2F2F4; --dim:#9a9aa4;
+      --primary:#0B5D3B; --accent:#3FA37A; --primary-on:#FFFFFF;
+    }
+    html, body { background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    h1 { color: var(--accent); font-size: 2rem; margin: 0 0 8px; letter-spacing: -.01em; }
+    .lede { color: var(--dim); margin: 0 0 32px; }
+    ol { padding-left: 1.4rem; }
+    li { margin: 10px 0; }
+    code, kbd { background: var(--surface); padding: 2px 6px; border-radius: 4px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+                font-size: .92em; }
+    .install-row { margin: 32px 0; }
+    esp-web-install-button { --esp-tools-button-color: var(--primary-on);
+                             --esp-tools-button-background-color: var(--accent); }
+    .note { background: var(--surface); border-left: 3px solid var(--accent);
+            padding: 14px 18px; border-radius: 8px; margin: 24px 0;
+            color: var(--text); }
+    .note strong { color: var(--accent); }
+    footer { color: var(--dim); font-size: .9rem; margin-top: 48px;
+             border-top: 1px solid var(--surface); padding-top: 16px; }
+    a { color: var(--accent); }
+    .chip { display: inline-flex; align-items: center; gap: 6px;
+            margin: 6px 14px 0 0; white-space: nowrap; font-size: .95rem; }
+    .sw { width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+          box-shadow: 0 0 6px currentColor; }
+    .sw.open { background: #00FF00; color: #00FF00; }
+    .sw.hold { background: #0000A0; color: #0000A0; }
+    .sw.closed { background: #FF0000; color: #FF0000; }
+    .sw.unknown { background: #FFFFFF; color: #FFFFFF; }
+  </style>
+</head>
+<body>
+  <h1>Install Mammoth Sign</h1>
+  <p class="lede">Flash the Mammoth Mountain LED trail-map sign in about a minute —
+  no toolchain, no source clone. All 25 lifts light straight from Mammoth's own
+  public feed; the sign needs nothing but Wi-Fi and power.</p>
+
+  <ol>
+    <li>Plug the sign's board into a <strong>USB port on this computer</strong>
+        (data cable, not charge-only).</li>
+    <li>Click <strong>Connect</strong> below and pick the device from the list
+        (its name looks like <code>cu.usbserial-…</code> or <code>CH340</code>).</li>
+    <li>Click <strong>Install Mammoth Sign</strong> on the panel that appears,
+        confirm the erase prompt, and wait (~1 min).</li>
+    <li>When the board reboots, join the open Wi-Fi network
+        <code>SETUP MAMMOTH SIGN</code> from your phone and enter your home
+        Wi-Fi. That's it — the lifts light up within a minute.</li>
+  </ol>
+
+  <div class="install-row">
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+  </div>
+
+  <div class="note">
+    <strong>What the colours mean:</strong>
+    <span class="chip"><i class="sw open"></i>green — open</span>
+    <span class="chip"><i class="sw hold"></i>blue — on hold or weather hold</span>
+    <span class="chip"><i class="sw closed"></i>red — closed</span>
+    <span class="chip"><i class="sw unknown"></i>white — no data from the feed</span>
+  </div>
+
+  <div class="note">
+    <strong>The switch on the back</strong> picks the season feed: up (or not
+    fitted) is the full winter mountain, down is the short summer list. Flip it
+    any time — the sign picks it up on its next check, no power cycle.
+  </div>
+
+  <div class="note">
+    <strong>Browser:</strong> works in <strong>Chrome</strong> or <strong>Edge</strong> on
+    desktop (they have WebSerial). Safari and Firefox don't yet — open this page in Chrome.
+  </div>
+
+  <div class="note">
+    <strong>After the first install</strong> the sign updates itself over Wi-Fi — every
+    six hours it checks for a newer release and rolls it in automatically. You only need
+    this page for a brand-new board or a recovery flash.
+  </div>
+
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button?module"></script>
+
+  <footer>
+    Firmware artifacts:
+    <a href="https://github.com/bricekevin/fw/releases">github.com/bricekevin/fw/releases</a>
+    (tags <code>mammoth-v*</code>).
+  </footer>
+</body>
+</html>
