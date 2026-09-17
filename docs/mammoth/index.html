@@ -43,6 +43,8 @@
     .sw.hold { background: #0000A0; color: #0000A0; }
     .sw.closed { background: #FF0000; color: #FF0000; }
     .sw.unknown { background: #FFFFFF; color: #FFFFFF; }
+    .sw.off { background: transparent; color: transparent;
+              box-shadow: none; border: 1px solid #55555f; }
   </style>
 </head>
 <body>
@@ -73,12 +75,14 @@
     <span class="chip"><i class="sw hold"></i>blue — on hold or weather hold</span>
     <span class="chip"><i class="sw closed"></i>red — closed</span>
     <span class="chip"><i class="sw unknown"></i>white — no data from the feed</span>
+    <span class="chip"><i class="sw off"></i>dark — not in this season's feed</span>
   </div>
 
   <div class="note">
     <strong>The switch on the back</strong> picks the season feed: up (or not
     fitted) is the full winter mountain, down is the short summer list. Flip it
-    any time — the sign picks it up on its next check, no power cycle.
+    any time — the sign picks it up on its next check, no power cycle. The
+    summer feed only covers four of the board's lifts, so the rest go dark.
   </div>
 
   <div class="note">
