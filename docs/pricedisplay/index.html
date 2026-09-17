@@ -4,77 +4,188 @@
   <meta charset="utf-8">
   <title>Install priceDisplay</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Install priceDisplay firmware from your browser.">
   <style>
     :root {
-      --bg:#0B0F0D; --surface:#161D19; --text:#EAF3EE; --dim:#8FA398;
-      --primary:#16C784; --primary-on:#04140D;
+      --bg: #0A0A0C;
+      --surface: #141419;
+      --surface-2: #1C1C23;
+      --line: #2A2A33;
+      --text: #F2F2F4;
+      --dim: #9A9AA4;
+      --accent: #4FD1C5;
+      --accent-ink: #04201D;
+      --radius: 12px;
     }
-    html, body { background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
     body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                    "Helvetica Neue", Arial, sans-serif;
-      line-height: 1.5;
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 48px 24px 80px;
+      font-size: 16px;
+      line-height: 1.55;
+      padding-block: 48px 72px;
+      padding-inline: 20px;
     }
-    h1 { color: var(--primary); font-size: 2rem; margin: 0 0 8px; letter-spacing: -.01em; }
-    .lede { color: var(--dim); margin: 0 0 32px; }
-    ol { padding-left: 1.4rem; }
-    li { margin: 10px 0; }
-    code, kbd { background: var(--surface); padding: 2px 6px; border-radius: 4px;
-                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-                font-size: .92em; }
-    .install-row { margin: 32px 0; }
-    esp-web-install-button { --esp-tools-button-color: var(--primary-on);
-                             --esp-tools-button-background-color: var(--primary); }
-    .note { background: var(--surface); border-left: 3px solid var(--primary);
-            padding: 14px 18px; border-radius: 8px; margin: 24px 0;
-            color: var(--text); }
-    .note strong { color: var(--primary); }
-    footer { color: var(--dim); font-size: .9rem; margin-top: 48px;
-             border-top: 1px solid var(--surface); padding-top: 16px; }
-    a { color: var(--primary); }
+    .wrap { max-width: 660px; margin: 0 auto; }
+
+    .eyebrow {
+      font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--dim); margin: 0 0 10px;
+    }
+    h1 {
+      font-size: clamp(1.7rem, 6vw, 2.4rem); line-height: 1.15;
+      margin: 0 0 12px; letter-spacing: -.02em;
+    }
+    .lede { color: var(--dim); margin: 0 0 28px; font-size: 1.05rem; }
+
+    /* ---- install panel ---- */
+    .install {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      margin: 0 0 32px;
+      text-align: center;
+    }
+    /* Our own button, handed to esp-web-tools through its `activate` slot, so
+       the styling is ordinary CSS instead of shadow-DOM custom properties. */
+    .btn {
+      font: inherit; font-weight: 600; font-size: 1.02rem;
+      color: var(--accent-ink); background: var(--accent);
+      border: none; border-radius: 9999px;
+      padding: 14px 30px; cursor: pointer; max-width: 100%;
+      transition: filter .15s ease, transform .15s ease;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(1px); }
+    .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    /* Fallback only: the CORRECT variable names, in case the slot is ever not
+       honoured. --esp-tools-button-color is the BACKGROUND. */
+    esp-web-install-button {
+      --esp-tools-button-color: var(--accent);
+      --esp-tools-button-text-color: var(--accent-ink);
+    }
+    .meta { color: var(--dim); font-size: .9rem; margin: 14px 0 0; }
+    .meta b { color: var(--text); font-weight: 600; }
+    .slot-msg {
+      display: block; color: var(--text); font-size: .95rem;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 14px 16px; text-align: left;
+    }
+
+    /* ---- steps ---- */
+    h2 { font-size: 1.05rem; margin: 0 0 14px; letter-spacing: -.01em; }
+    ol.steps { list-style: none; counter-reset: s; margin: 0 0 32px; padding: 0; }
+    ol.steps li {
+      counter-increment: s; position: relative;
+      padding: 0 0 0 40px; margin: 0 0 16px;
+    }
+    ol.steps li::before {
+      content: counter(s);
+      position: absolute; left: 0; top: 1px;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--surface-2); border: 1px solid var(--line);
+      color: var(--accent); font-size: .82rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    code {
+      background: var(--surface-2); border: 1px solid var(--line);
+      padding: 1px 6px; border-radius: 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      font-size: .88em; overflow-wrap: anywhere;
+    }
+
+    /* ---- cards ---- */
+    .card {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 18px 20px; margin: 0 0 16px;
+    }
+    .card h2 { margin-bottom: 10px; }
+    .card p { margin: 0; color: var(--dim); }
+    .card p b, .card p strong { color: var(--text); }
+
+    /* ---- legend ---- */
+    ul.legend { list-style: none; margin: 0; padding: 0;
+                display: grid; gap: 10px 20px;
+                grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+    ul.legend li { display: flex; align-items: center; gap: 10px; color: var(--dim); }
+    ul.legend b { color: var(--text); font-weight: 600; }
+    .sw { width: 13px; height: 13px; border-radius: 50%; flex: none;
+          box-shadow: 0 0 8px currentColor; }
+    .sw.dark { background: transparent; box-shadow: none;
+               border: 1px solid #5C5C68; }
+
+    footer {
+      color: var(--dim); font-size: .88rem; margin-top: 40px;
+      border-top: 1px solid var(--line); padding-top: 18px;
+    }
+    a { color: var(--accent); }
   </style>
 </head>
 <body>
-  <h1>Install priceDisplay</h1>
-  <p class="lede">Flash a fresh M5Stack Core in about a minute — no toolchain, no source clone.
-    A crypto &amp; stock price ticker with candlestick charts.</p>
+<div class="wrap">
 
-  <ol>
-    <li>Plug your M5Stack Core into a <strong>USB port on this computer</strong>
-        (data cable, not charge-only).</li>
-    <li>Click <strong>Connect</strong> below and pick the device from the list
-        (its name looks like <code>cu.usbserial-…</code> or <code>cu.SLAB_USBtoUART</code>).</li>
-    <li>Click <strong>Install priceDisplay</strong> on the panel that appears, confirm the erase
-        prompt, and wait. The first install writes the bootloader, firmware, and the chart
-        images (~1 min).</li>
-    <li>Insert an SD card with a <code>ccticker.cfg</code> file (WiFi credentials, trading pairs,
-        timezone). When the device reboots it reads that config; if it can't find WiFi it opens
-        the <code>SETUP PRICE TICKER</code> soft-AP — join it from your phone to enter WiFi.</li>
+  <p class="eyebrow">Firmware installer</p>
+  <h1>priceDisplay</h1>
+  <p class="lede">Flash a fresh M5Stack Core in about a minute. No toolchain, no source clone. A crypto and stock price ticker with candlestick charts.</p>
+
+  <div class="install">
+    <esp-web-install-button manifest="manifest.json">
+      <button class="btn" slot="activate">Connect &amp; install</button>
+      <span class="slot-msg" slot="unsupported">
+        This browser can't talk to USB devices. Open this page in
+        <b>Chrome</b> or <b>Edge</b> on a desktop computer.
+      </span>
+      <span class="slot-msg" slot="not-allowed">
+        Installing needs a secure connection. Open this page over
+        <code>https://</code>.
+      </span>
+    </esp-web-install-button>
+    <p class="meta">Latest build <b id="ver">&hellip;</b> &middot; Chrome or Edge on desktop</p>
+  </div>
+
+  <h2>What happens</h2>
+  <ol class="steps">
+    <li>Plug your M5Stack Core into a <b>USB port on this computer</b>. Use a data cable &mdash; a charge-only cable powers the device but carries no data.</li>
+    <li>Press <b>Connect &amp; install</b> and pick the device from the list. It usually appears as <code>cu.usbserial-&hellip;</code> or <code>cu.SLAB_USBtoUART</code>.</li>
+    <li>Choose <b>Install priceDisplay</b>, confirm the erase prompt, and wait about a minute. The first install writes the bootloader, the firmware and the chart images together.</li>
+    <li>Insert an SD card holding a <code>ccticker.cfg</code> file with your Wi-Fi details, trading pairs and timezone. The device reads it on boot. If it cannot find that Wi-Fi it opens the <code>SETUP PRICE TICKER</code> network instead &mdash; join it from your phone to enter the details by hand.</li>
   </ol>
 
-  <div class="install-row">
-    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+  <div class="card">
+    <h2>After the first install</h2>
+    <p>It updates itself over Wi-Fi. Every six hours it checks for a newer build and installs it, rolling back on its own if one fails to start. You only need this page for a brand-new board or a recovery flash.</p>
   </div>
 
-  <div class="note">
-    <strong>Browser:</strong> works in <strong>Chrome</strong> or <strong>Edge</strong> on
-    desktop (they have WebSerial). Safari and Firefox don't yet — open this page in Chrome.
-  </div>
-
-  <div class="note">
-    <strong>After the first install</strong> the device updates itself over WiFi — every
-    six hours it checks for a newer release and rolls it in automatically. You only need
-    this page for a brand-new device or a recovery flash.
-  </div>
-
-  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button?module"></script>
 
   <footer>
     Firmware artifacts:
-    <a href="https://github.com/bricekevin/fw/releases">github.com/bricekevin/fw/releases</a>.
+    <a href="https://github.com/bricekevin/fw/releases">github.com/bricekevin/fw/releases</a>
+    (tags <code>priceDisplay-v*</code>).
   </footer>
+
+</div>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button?module"></script>
+<script>
+  // Show the version this page would install. Same-origin and purely
+  // informational: if it fails the line just says "latest".
+  fetch('manifest.json', { cache: 'no-cache' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (m) {
+      var el = document.getElementById('ver');
+      if (el) el.textContent = (m && m.version) ? m.version : 'latest';
+    })
+    .catch(function () {
+      var el = document.getElementById('ver');
+      if (el) el.textContent = 'latest';
+    });
+</script>
 </body>
 </html>
