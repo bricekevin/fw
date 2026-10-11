@@ -1,0 +1,16 @@
+{
+  "name": "Sports Meter",
+  "version": "0.1.1",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "sportsmeter-latest-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
