@@ -8,6 +8,12 @@ Only three products have units in the field: **codeMeter, priceDisplay,
 socialMeter**. Every sign (coaster, Dodge Ridge, and the rest) is in hand and is
 recovered over USB from `https://bricekevin.github.io/fw/<product>/`.
 
+**Sports Meter** (added 2026-10-11) went on sale on 2026-10-10. It was born on
+the MANIFEST mechanism and has never had a GitHub Release, so it adds nothing
+to the releases list the older units of the three products above still parse.
+Its rows are in the table below; its web flasher is
+`https://bricekevin.github.io/fw/sportsmeter/`.
+
 ## The two mechanisms
 
 | | Reads | Needs from us |
@@ -25,6 +31,7 @@ recovered over USB from `https://bricekevin.github.io/fw/<product>/`.
 | priceDisplay | `v1.0.4`, `v1.0.5` | MANIFEST | **yes** |
 | socialMeter | `v0.1.0` | RELEASES-API, asset `firmware.bin` | **yes — but only since 2026-08-29.** Its releases only ever carried `socialmeter-firmware.bin`, so this generation's OTA **never worked**. `socialmeter-v0.1.3` now also carries `firmware.bin`. |
 | socialMeter | `v0.1.1`–`v0.1.3` | MANIFEST | **yes** |
+| sportsMeter | `sportsmeter-v0.1.0`, `v0.1.1` | MANIFEST (read at both tags: no releases-API code in either) | **yes** — `ota/sportsmeter.json` names the Pages payload `sportsmeter/firmware-0.1.1.bin`; both return 200 |
 
 codeMeter's legacy unprefixed tags (`v0.0.2`…`v0.2.0`) are matched by a
 "prefixed **or** bare `v…`" rule in that firmware, so they still select the
@@ -110,10 +117,16 @@ Pages is also **simpler** than what it replaced: one hop with `Content-Length`,
 versus a 302 chain through `release-assets.githubusercontent.com` that the
 firmware follows by hand.
 
+**Sports Meter** was proven on hardware once, on 2026-10-05: a unit flashed
+with `0.1.0` over USB installed `0.1.1` from Pages by itself. Not yet exercised
+for it: the crash rollback, an interrupted download, a second unit.
+
 ## The one dated caveat: the ISRG cross-sign
 
 All three products pin exactly two roots: **USERTrust ECC** (for `github.com`)
-and **ISRG Root X1**. But `bricekevin.github.io` now presents:
+and **ISRG Root X1**. Sports Meter pins the same two (its `ota_certs.h` came
+from Social Meter), so everything in this section applies to it as well, and
+the remediation below is a change to five products, not four. But `bricekevin.github.io` now presents:
 
 ```
 *.github.io  ->  Let's Encrypt YR1  ->  ISRG Root YR   (expires 2028-09-02)
