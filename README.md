@@ -34,6 +34,7 @@ WiFi on its own.
 - codeMeter — <https://bricekevin.github.io/fw/>
 - Social Meter — <https://bricekevin.github.io/fw/socialmeter/>
 - priceDisplay — <https://bricekevin.github.io/fw/pricedisplay/>
+- Guru / Furu button box (Feather ESP32-S3) — <https://bricekevin.github.io/fw/guru-furu/> (USB install only, no OTA; built by `firmware/tools/web_release.sh` in the source repo)
 
 ## OTA discovery (already-flashed device)
 

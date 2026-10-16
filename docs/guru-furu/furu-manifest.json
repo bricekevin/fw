@@ -1,0 +1,11 @@
+{
+  "name": "Furu box",
+  "version": "2026.10.16-1317",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [{ "path": "furu-merged.bin", "offset": 0 }]
+    }
+  ]
+}

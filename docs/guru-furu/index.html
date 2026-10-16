@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Install Guru / Furu box</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Install the Guru / Furu button box firmware from your browser, and read its log.">
+  <style>
+    :root {
+      --bg: #0A0A0C;
+      --surface: #141419;
+      --surface-2: #1C1C23;
+      --line: #2A2A33;
+      --text: #F2F2F4;
+      --dim: #9A9AA4;
+      --accent: #2EC27E;
+      --furu: #E5484D;
+      --furu-ink: #1F0607;
+      --accent-ink: #06170E;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      padding-block: 48px 72px;
+      padding-inline: 20px;
+    }
+    .wrap { max-width: 660px; margin: 0 auto; }
+
+    .eyebrow {
+      font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--dim); margin: 0 0 10px;
+    }
+    h1 {
+      font-size: clamp(1.7rem, 6vw, 2.4rem); line-height: 1.15;
+      margin: 0 0 12px; letter-spacing: -.02em;
+    }
+    .lede { color: var(--dim); margin: 0 0 28px; font-size: 1.05rem; }
+
+    /* ---- install panel ---- */
+    .install {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      margin: 0 0 32px;
+      text-align: center;
+    }
+    /* Our own button, handed to esp-web-tools through its `activate` slot, so
+       the styling is ordinary CSS instead of shadow-DOM custom properties. */
+    .btn {
+      font: inherit; font-weight: 600; font-size: 1.02rem;
+      color: var(--accent-ink); background: var(--accent);
+      border: none; border-radius: 9999px;
+      padding: 14px 30px; cursor: pointer; max-width: 100%;
+      transition: filter .15s ease, transform .15s ease;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(1px); }
+    .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    /* Fallback only: the CORRECT variable names, in case the slot is ever not
+       honoured. --esp-tools-button-color is the BACKGROUND. */
+    esp-web-install-button {
+      --esp-tools-button-color: var(--accent);
+      --esp-tools-button-text-color: var(--accent-ink);
+    }
+    .btn.furu { background: var(--furu); color: var(--furu-ink); }
+    .btn.furu:focus-visible { outline-color: var(--furu); }
+    .pair { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    .pair p { margin: 8px 0 0; color: var(--dim); font-size: .9rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    td { border-top: 1px solid var(--line); padding: 9px 6px; vertical-align: top; }
+    td:first-child { color: var(--text); font-weight: 600; width: 38%; }
+    td:last-child { color: var(--dim); }
+    .meta { color: var(--dim); font-size: .9rem; margin: 14px 0 0; }
+    .meta b { color: var(--text); font-weight: 600; }
+    .slot-msg {
+      display: block; color: var(--text); font-size: .95rem;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 10px; padding: 14px 16px; text-align: left;
+    }
+
+    /* ---- steps ---- */
+    h2 { font-size: 1.05rem; margin: 0 0 14px; letter-spacing: -.01em; }
+    ol.steps { list-style: none; counter-reset: s; margin: 0 0 32px; padding: 0; }
+    ol.steps li {
+      counter-increment: s; position: relative;
+      padding: 0 0 0 40px; margin: 0 0 16px;
+    }
+    ol.steps li::before {
+      content: counter(s);
+      position: absolute; left: 0; top: 1px;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--surface-2); border: 1px solid var(--line);
+      color: var(--accent); font-size: .82rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    code {
+      background: var(--surface-2); border: 1px solid var(--line);
+      padding: 1px 6px; border-radius: 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      font-size: .88em; overflow-wrap: anywhere;
+    }
+
+    /* ---- cards ---- */
+    .card {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 18px 20px; margin: 0 0 16px;
+    }
+    .card h2 { margin-bottom: 10px; }
+    .card p { margin: 0; color: var(--dim); }
+    .card p b, .card p strong { color: var(--text); }
+
+    /* ---- legend ---- */
+    ul.legend { list-style: none; margin: 0; padding: 0;
+                display: grid; gap: 10px 20px;
+                grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+    ul.legend li { display: flex; align-items: center; gap: 10px; color: var(--dim); }
+    ul.legend b { color: var(--text); font-weight: 600; }
+    .sw { width: 13px; height: 13px; border-radius: 50%; flex: none;
+          box-shadow: 0 0 8px currentColor; }
+    .sw.dark { background: transparent; box-shadow: none;
+               border: 1px solid #5C5C68; }
+
+    footer {
+      color: var(--dim); font-size: .88rem; margin-top: 40px;
+      border-top: 1px solid var(--line); padding-top: 18px;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Firmware installer</p>
+  <h1>Guru / Furu box</h1>
+  <p class="lede">Flash a Feather ESP32-S3 button box over USB and watch its log. One firmware for both boxes; the button you pick only sets which sound and colour a fresh box starts with. Both can be changed later on the box's setup page.</p>
+
+  <div class="install">
+    <div class="pair">
+      <div>
+        <esp-web-install-button manifest="guru-manifest.json">
+          <button class="btn" slot="activate">Install Guru (green)</button>
+          <span class="slot-msg" slot="unsupported">This browser can't talk to USB devices. Open this page in <b>Chrome</b> or <b>Edge</b> on a desktop computer.</span>
+          <span class="slot-msg" slot="not-allowed">Installing needs <code>https://</code>.</span>
+        </esp-web-install-button>
+        <p>Cheers on a slap</p>
+      </div>
+      <div>
+        <esp-web-install-button manifest="furu-manifest.json">
+          <button class="btn furu" slot="activate">Install Furu (red)</button>
+          <span class="slot-msg" slot="unsupported">Use <b>Chrome</b> or <b>Edge</b> on a desktop computer.</span>
+          <span class="slot-msg" slot="not-allowed">Installing needs <code>https://</code>.</span>
+        </esp-web-install-button>
+        <p>Boos on a slap</p>
+      </div>
+    </div>
+    <p class="meta">Build <b id="ver">&hellip;</b> &middot; firmware and built-in sounds together, 8 MB &middot; Chrome or Edge on desktop</p>
+  </div>
+
+  <h2>Install</h2>
+  <ol class="steps">
+    <li>Switch the box <b>on</b> (power button latched in) and plug its USB-C into this computer with a <b>data</b> cable.</li>
+    <li>Press the Guru or Furu button and pick the device. It shows as <code>USB JTAG/serial debug unit</code> or <code>cu.usbmodem&hellip;</code>.</li>
+    <li>Choose <b>Install</b> and accept the erase prompt. Writing 8 MB takes two or three minutes.</li>
+    <li>Not found, or it will not connect: hold the Feather's <b>BOOT</b> button, tap <b>RESET</b>, let go of BOOT, then try again.</li>
+  </ol>
+
+  <h2>Read the log</h2>
+  <ol class="steps">
+    <li>Press either button again and connect. On a box that is already installed, choose <b>Logs &amp; console</b>.</li>
+    <li>Press <b>Reset device</b> to see it start from the top. Every press, hold and setup change is printed.</li>
+  </ol>
+
+  <div class="card">
+    <h2>What to check</h2>
+    <table>
+      <tr><td>Switched on</td><td>Ring sweeps red, green, blue, white, then turns <b>blue</b>: setup is open for three minutes. Log says <code>box: GURU &hellip; sounds ok</code>.</td></tr>
+      <tr><td>Slap the dome</td><td>Sound plays, the dome lights while it plays, and the ring cycles colours. Log says <code>press: playing /guru.wav</code>.</td></tr>
+      <tr><td>Setup closes</td><td>Ring turns green (Guru) or red (Furu). Log says <code>portal: closed, radio off</code>.</td></tr>
+      <tr><td>Hold the dome 5 s</td><td>Setup reopens for ten minutes and the ring goes blue.</td></tr>
+      <tr><td>Hold the dome 15 s</td><td>Also forgets the saved Wi-Fi.</td></tr>
+      <tr><td>Dome blinks three times, over and over</td><td>The sounds are missing. Install again from this page.</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Pick a sound, set the volume, or join Wi-Fi</h2>
+    <p>While setup is open (ring blue), join the hotspot <code>guru-box</code> or <code>furu-box</code> from a phone and open <code>http://192.168.4.1/box</code> in the phone's <b>real browser</b>. Wi-Fi is optional: the box makes its sound without it.</p>
+  </div>
+
+  <footer>Made by Encinitas 3D. Source is private.</footer>
+
+</div>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button?module"></script>
+<script>
+  fetch('guru-manifest.json', { cache: 'no-cache' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (m) { document.getElementById('ver').textContent = (m && m.version) ? m.version : 'latest'; })
+    .catch(function () { document.getElementById('ver').textContent = 'latest'; });
+</script>
+</body>
+</html>

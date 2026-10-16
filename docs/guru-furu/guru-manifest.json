@@ -1,0 +1,11 @@
+{
+  "name": "Guru box",
+  "version": "2026.10.16-1317",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [{ "path": "guru-merged.bin", "offset": 0 }]
+    }
+  ]
+}
