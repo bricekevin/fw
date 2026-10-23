@@ -177,7 +177,7 @@ chooses. This is a **separate line**: no fielded unit has the layout (OTA
 cannot change a partition table), and nothing here changes the per-product
 manifests or releases above.
 
-- `ota/catalog.json`: `{"v":1,"apps":[{"id","name","desc","manifest"}]}`.
+- `ota/catalog.json`: `{"v":1,"apps":[{"id","name","desc","icon","color","manifest"}]}`; `icon` is gauge, chart, heart or ball (else the first letter), `color` is `#RRGGBB`.
   `manifest` points at the app's **universal** manifest. List an app only once
   that manifest exists and its payload returns 200.
 - `ota/<product>-universal.json`: same shape as a product manifest. Its payload
