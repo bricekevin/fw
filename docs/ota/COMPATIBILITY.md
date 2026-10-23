@@ -168,3 +168,27 @@ Watch for **renamed paths**: codeMeter's sketch was `m5clawd/ota.ino` before
 `codemeter-v0.3.0`, and a naive audit silently reports "unknown" for every
 release before the rename — which is exactly the set most likely to still be in
 the field.
+
+## Universal units: the app picker (theClaw ADR 017)
+
+New units can ship on a 16 MB layout with an app picker in a `factory`
+partition. The picker reads `ota/catalog.json` and installs the app the buyer
+chooses. This is a **separate line**: no fielded unit has the layout (OTA
+cannot change a partition table), and nothing here changes the per-product
+manifests or releases above.
+
+- `ota/catalog.json`: `{"v":1,"apps":[{"id","name","desc","manifest"}]}`.
+  `manifest` points at the app's **universal** manifest. List an app only once
+  that manifest exists and its payload returns 200.
+- `ota/<product>-universal.json`: same shape as a product manifest. Its payload
+  is `docs/<product>/universal-firmware-<version>.bin`, built with a 16 MB
+  app header. An app installed by the picker polls this manifest, never the
+  per-product one: its own OTA writes app1 at 0x690000, past 4 MB.
+- Optional `"spiffs"` URL in a universal manifest: a SPIFFS image the picker
+  writes before the app (partition 0x470000 bytes).
+- Payloads come from Pages; no GitHub release is needed, so this line adds
+  nothing to the published-release size budget.
+
+| App | Universal manifest | Since |
+| --- | --- | --- |
+| codeMeter | `codemeter-universal.json` | 2026-10-23, 0.4.5 |
