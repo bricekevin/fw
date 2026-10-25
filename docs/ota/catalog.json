@@ -1,3 +1,6 @@
 {"v":1,"apps":[
-{"id":"codemeter","name":"codeMeter","desc":"Claude and Codex usage limits","icon":"gauge","color":"#DA7756","manifest":"https://bricekevin.github.io/fw/ota/codemeter-universal.json"}
+{"id":"codemeter","name":"codeMeter","desc":"Claude and Codex usage limits","icon":"gauge","color":"#DA7756","manifest":"https://bricekevin.github.io/fw/ota/codemeter-universal.json"},
+{"id":"pricedisplay","name":"Price Display","desc":"Stock and crypto prices","icon":"chart","color":"#16C784","manifest":"https://bricekevin.github.io/fw/ota/pricedisplay-universal.json"},
+{"id":"socialmeter","name":"Social Meter","desc":"Follower and subscriber counts","icon":"heart","color":"#1185FE","manifest":"https://bricekevin.github.io/fw/ota/socialmeter-universal.json"},
+{"id":"sportsmeter","name":"Sports Meter","desc":"Live scores for your teams","icon":"ball","color":"#2EC27E","manifest":"https://bricekevin.github.io/fw/ota/sportsmeter-universal.json"}
 ]}
