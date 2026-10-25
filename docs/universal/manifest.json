@@ -1,0 +1,7 @@
+{
+  "name": "Universal display (app picker)",
+  "version": "0.2.0",
+  "new_install_prompt_erase": true,
+  "builds": [ { "chipFamily": "ESP32",
+                "parts": [ { "path": "universal-latest-merged.bin", "offset": 0 } ] } ]
+}
